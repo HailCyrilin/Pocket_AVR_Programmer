@@ -440,19 +440,21 @@ let tank = null, heli = null, lastBoom = 0;
 
 try { best = Math.max(1, parseInt(localStorage.getItem('hh-best') || '1', 10) || 1); } catch (e) {}
 
-const lvlHp = () => 1 + 0.4 * (level - 1);
+// difficulty climbs steeply to level 5, then levels off; rewards (gates, tank, starting squad) keep scaling with level
+const D = () => level <= 5 ? level : 5 + (level - 5) * 0.35;
+const lvlHp = () => 1 + 0.4 * (D() - 1);
 
 function makeZombie(type, x, zAbs) {
   const d = ZT[type], hp = d.hp * lvlHp();
-  return { type, x, zAbs, z: zAbs - dist, hp, max: hp, spd: d.spd * rnd(0.85, 1.15) * (1 + 0.04 * level), r: d.r, h: d.h, bite: d.bite,
+  return { type, x, zAbs, z: zAbs - dist, hp, max: hp, spd: d.spd * rnd(0.85, 1.15) * (1 + 0.04 * D()), r: d.r, h: d.h, bite: d.bite,
     v: ri(0, SPR[type].length - 1), ph: Math.random() * 6, off: rnd(-1, 1), fl: 0, dead: false };
 }
 function makeWave(pos, big) {
   const frac = pos / L;
-  let n = Math.round((12 + level * 6) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
-  n = Math.min(pos < 70 ? 6 + level : 200, n);
+  let n = Math.round((12 + D() * 6) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
+  n = Math.min(pos < 70 ? 6 + D() : 200, n);
   const depth = 3 + n * 0.05;
-  const pBrute = pos < 70 ? 0 : Math.min(0.16, 0.03 * level), pRunner = Math.min(0.3, 0.1 + 0.03 * level);
+  const pBrute = pos < 70 ? 0 : Math.min(0.16, 0.03 * D()), pRunner = Math.min(0.3, 0.1 + 0.03 * D());
   for (let j = 0; j < n; j++) {
     const r = Math.random();
     const type = r < pBrute ? 'brute' : r < pBrute + pRunner ? 'runner' : 'walker';
@@ -461,7 +463,7 @@ function makeWave(pos, big) {
 }
 function makeGates(pos) {
   const good = () => Math.random() < 0.2 ? { op: '×', v: 2 } : Math.random() < 0.3 ? { op: '+', v: ri(1, 3) } : { op: '+', v: ri(3, 6) + level * 2 };
-  const bad = () => pick([{ op: '−', v: ri(5, 10) + level * 3 }, { op: '÷', v: 2 }, { op: '−', v: ri(3, 6) + level }]);
+  const bad = () => pick([{ op: '−', v: ri(5, 10) + Math.round(D() * 3) }, { op: '÷', v: 2 }, { op: '−', v: ri(3, 6) + Math.round(D()) }]);
   const r = Math.random();
   let a = r < 0.08 ? bad() : good(), b = r < 0.7 ? bad() : good();
   if (Math.random() < 0.5) [a, b] = [b, a];
@@ -470,13 +472,13 @@ function makeGates(pos) {
 function makeCrate(zAbs) {
   const r = Math.random();
   const kind = r < 0.45 ? 'weapon' : r < 0.62 ? 'fire' : r < 0.84 ? 'tank' : 'heli';
-  const hp = (28 + 24 * level) * (kind === 'tank' || kind === 'heli' ? 1.6 : 1);
+  const hp = (28 + 24 * D()) * (kind === 'tank' || kind === 'heli' ? 1.6 : 1);
   const gun = kind === 'weapon' ? pick(GUNS) : null;
   crates.push({ kind, gun, label: gun ? WEAPONS[gun].name : CRATE_LABEL[kind], x: rnd(-3.3, 3.3), zAbs, hp, max: hp, fl: 0, dead: false });
 }
 
 function startLevel() {
-  dist = 0; speed = 0; L = 240 + 35 * level; N = 4 + level * 3; px = 0; targetPx = 0; camX = 0; kills = 0;
+  dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3; px = 0; targetPx = 0; camX = 0; kills = 0;
   fireLvl = 1; weapon = 'rifle'; tank = null; heli = null;
   zombies = []; bullets = []; gates = []; crates = []; parts = []; decals = []; texts = []; flashes = [];
   boss = null; bossPhase = false; endTimer = 0; fireAcc = 0; shake = 0; hurt = 0;
@@ -495,7 +497,7 @@ function spawnBoss() {
   const w = WEAPONS[weapon];
   const squadDps = N * w.rate * w.dmg * w.pellets * (1 + 0.3 * (fireLvl - 1));
   const support = (tank ? 16 * lvlHp() / 1.4 * 2 : 0) + (heli ? 7 * lvlHp() / 0.45 * 2 : 0);
-  const hp = Math.round(Math.max(420 * Math.pow(level, 1.5), (squadDps + support) * (5.5 + level * 0.6)));
+  const hp = Math.round(Math.max(420 * Math.pow(D(), 1.5), (squadDps + support) * (5.5 + D() * 0.6)));
   boss = { x: 0, zAbs: dist + 28, y: 9, hp, max: hp, ph: 0, fl: 0, spawnT: 2.5, biteT: 0, dead: false };
   shake = 1;
   $('bossBar').hidden = false;
@@ -554,7 +556,7 @@ function hitGate(g, dmg) {
   g.hitT = 0.08;
   if (g.op === '×' || g.op === '÷') return;
   g.acc += dmg;
-  const step = Math.max(4 + level * 1.5, N * 0.08);
+  const step = Math.max(4 + D() * 1.5, N * 0.08);
   while (g.acc >= step) {
     g.acc -= step; g.pop = 1;
     if (g.op === '+') g.v = Math.min(60, g.v + 1);
@@ -625,7 +627,7 @@ function update(dt) {
 
   // scrolling
   if (live && !bossPhase && dist >= L) { bossPhase = true; spawnBoss(); }
-  const cruise = 5.6 + 0.3 * level;
+  const cruise = 5.6 + 0.3 * D();
   speed += ((live && !bossPhase ? cruise : 0) - speed) * Math.min(1, dt * 2);
   const prevDist = dist;
   dist += speed * dt;
@@ -734,8 +736,8 @@ function update(dt) {
     boss.x += (px - boss.x) * dt * 0.5;
     boss.spawnT -= dt;
     if (boss.spawnT <= 0 && live) {
-      boss.spawnT = Math.max(1, 2.6 - level * 0.2);
-      for (let i = 0; i < 4 + level * 2; i++) zombies.push(makeZombie(Math.random() < 0.35 ? 'runner' : 'walker', clamp(boss.x + rnd(-3, 3), -4.5, 4.5), boss.zAbs - rnd(1, 3)));
+      boss.spawnT = Math.max(1, 2.6 - D() * 0.2);
+      for (let i = 0; i < 4 + D() * 2; i++) zombies.push(makeZombie(Math.random() < 0.35 ? 'runner' : 'walker', clamp(boss.x + rnd(-3, 3), -4.5, 4.5), boss.zAbs - rnd(1, 3)));
     }
     const stop = (tank ? tankZ + 1 : R) + 1.6;
     if (live && bz < stop) {
@@ -743,8 +745,8 @@ function update(dt) {
       boss.biteT -= dt;
       if (boss.biteT <= 0) {
         boss.biteT = 0.4;
-        if (tank) { tank.hp -= 6 + 3 * level; shake = 0.6; if (tank.hp <= 0) destroyTank(tankZ); }
-        else { N -= Math.max(3 + level, Math.round(N * 0.03)); hurt = 0.4; shake = 1; countPop = 1; }
+        if (tank) { tank.hp -= 6 + 3 * D(); shake = 0.6; if (tank.hp <= 0) destroyTank(tankZ); }
+        else { N -= Math.max(Math.round(3 + D()), Math.round(N * 0.03)); hurt = 0.4; shake = 1; countPop = 1; }
         sfx.bite();
       }
     }
