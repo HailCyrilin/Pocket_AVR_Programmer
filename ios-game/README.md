@@ -22,11 +22,17 @@ controls, safe-area insets, home-screen mode). It also works on desktop
   Most pairs have a bad side, and some have two.
 - **Crates** open when shot. Each one is labelled with what it gives:
   - Weapons: **SMG** (fast, sprays), **SHOTGUN** (6-pellet blast, short range),
-    **LASER** (pierces through a line of zombies), **ROCKETS** (slow, splash damage).
-  - **FIRE+**: faster fire for the whole squad (up to 4 times).
+    **LASER** (pierces a line of zombies), **ROCKETS** (slow, splash damage),
+    **MINIGUN** (very fast, light rounds), **FLAMER** (short range, sets zombies on fire),
+    **RAILGUN** (slow, pierces everything in its path), **TESLA** (lightning chains to 3 more zombies).
+  - **FIRE+**: +30% fire rate for the whole squad (stacks 4 times).
+  - **+N**: extra soldiers.
   - **TANK**: a tank drives in front of the squad, shells the horde and takes the bites
     until its armour runs out. A second tank crate repairs and upgrades it.
   - **HELI**: a helicopter flies cover for 18 seconds, firing rockets.
+  - **SHIELD**: no bites for 6 seconds. **FREEZE**: all zombies nearly stop for 4 seconds.
+  - **COINS**: coins for upgrades. **NUKE** (rare): kills every zombie in view and hurts the boss.
+- Rounds fly all the way to the horizon, so far crates and hordes can be shot early.
 - **Red barrels** sit inside the hordes; shoot one to blow up everything around it.
   **Troop crates** (`+N`) add soldiers.
 - **Supply drops** pause the road twice per level: pick one of three perk cards

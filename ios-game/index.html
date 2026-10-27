@@ -155,7 +155,7 @@ body{
     <ul class="rules">
       <li><span class="tag good">+5 ×2</span>Drive through blue gates to grow your squad.</li>
       <li><span class="tag bad">−8 ÷2</span>Avoid red gates, or shoot them until they turn blue. Bullets fly through gates.</li>
-      <li><span class="tag crate">CRATE</span>Shoot crates for guns, troops, a tank or a helicopter. Red barrels explode.</li>
+      <li><span class="tag crate">CRATE</span>Shoot crates for 8 guns, troops, tanks, helicopters, shields, freezes and nukes. Red barrels explode.</li>
       <li><span class="tag drop">DROP</span>Pick a perk at each supply drop. Spend coins on upgrades between levels.</li>
     </ul>
     <p>Drag anywhere to steer. Your squad fires on its own. Kill the boss at the end of the road.</p>
@@ -211,9 +211,9 @@ const ctx = cvs.getContext('2d');
 const $ = id => document.getElementById(id);
 
 const ROAD = 5;                 // half-width of the road, world units
-const CAM_H = 16, CAM_BACK = 12;
-const PITCH = 40 * Math.PI / 180, COS = Math.cos(PITCH), SIN = Math.sin(PITCH);
-const FAR = 125, NEAR = -7;  // FAR is the horizon: rounds fly until they reach it
+const CAM_H = 15, CAM_BACK = 13;
+const PITCH = 26 * Math.PI / 180, COS = Math.cos(PITCH), SIN = Math.sin(PITCH);
+const FAR = 220, NEAR = -7;  // FAR is the horizon: rounds fly until they reach it
 const ZC0 = CAM_H * SIN + CAM_BACK * COS;   // camera depth of the squad's spot
 const YC0 = -CAM_H * COS + CAM_BACK * SIN;
 let W = 0, H = 0, DPR = 1, FOC = 1, CX = 0, CY = 0, KP = 1;
@@ -225,7 +225,7 @@ function resize() {
   cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
   FOC = Math.min(W * 0.94, H * 0.6) * ZC0 / (2 * ROAD);
   CX = W / 2;
-  CY = H * 0.79 + YC0 * FOC / ZC0;
+  CY = H * 0.82 + YC0 * FOC / ZC0;
   KP = FOC / ZC0;
 }
 window.addEventListener('resize', resize);
@@ -463,14 +463,19 @@ const squadR = n => 0.42 * Math.sqrt(n) + 0.25;
 
 // rate: shots per soldier per second; dmg: damage per pellet; pierce: extra zombies a round passes through
 const WEAPONS = {
-  rifle:   { name: 'RIFLE',   rate: 2.8,  dmg: 1,    pellets: 1, spread: 0.3, aim: 1,   speed: 48, range: 120, pierce: 0, splash: 0,   col: '#ffd59a', len: 1.3 },
-  smg:     { name: 'SMG',     rate: 6,    dmg: 0.5,  pellets: 1, spread: 1.6, aim: 0.8, speed: 52, range: 120, pierce: 0, splash: 0,   col: '#fff3a0', len: 1.0 },
+  rifle:   { name: 'RIFLE',   rate: 2.8,  dmg: 1,    pellets: 1, spread: 0.3, aim: 1,   speed: 48, range: 210, pierce: 0, splash: 0,   col: '#ffd59a', len: 1.3 },
+  smg:     { name: 'SMG',     rate: 6,    dmg: 0.5,  pellets: 1, spread: 1.6, aim: 0.8, speed: 52, range: 210, pierce: 0, splash: 0,   col: '#fff3a0', len: 1.0 },
   shotgun: { name: 'SHOTGUN', rate: 1,    dmg: 0.7,  pellets: 6, spread: 5,   aim: 0.4, speed: 44, range: 40, pierce: 1, splash: 0,   col: '#ffb070', len: 0.8 },
-  laser:   { name: 'LASER',   rate: 2,    dmg: 1.1,  pellets: 1, spread: 0.1, aim: 1,   speed: 85, range: 120, pierce: 5, splash: 0,   col: '#7ff0ff', len: 3.2 },
-  rocket:  { name: 'ROCKETS', rate: 0.55, dmg: 2.4,  pellets: 1, spread: 0.4, aim: 1,   speed: 30, range: 120, pierce: 0, splash: 1.5, col: '#ff8a3a', len: 0.5, big: true },
+  laser:   { name: 'LASER',   rate: 2,    dmg: 1.1,  pellets: 1, spread: 0.1, aim: 1,   speed: 85, range: 210, pierce: 5, splash: 0,   col: '#7ff0ff', len: 3.2 },
+  rocket:  { name: 'ROCKETS', rate: 0.55, dmg: 2.4,  pellets: 1, spread: 0.4, aim: 1,   speed: 30, range: 210, pierce: 0, splash: 1.5, col: '#ff8a3a', len: 0.5, big: true },
+  minigun: { name: 'MINIGUN',  rate: 9,    dmg: 0.38, pellets: 1, spread: 0.9, aim: 0.9, speed: 60,  range: 210, pierce: 0,  splash: 0, col: '#fff8d0', len: 1.4 },
+  flamer:  { name: 'FLAMER',   rate: 5,    dmg: 0.6,  pellets: 2, spread: 2.5, aim: 0.6, speed: 30,  range: 30,  pierce: 3,  splash: 0, col: '#ff7a2a', len: 1.6, burn: 1.8, thick: true },
+  railgun: { name: 'RAILGUN',  rate: 0.45, dmg: 5,    pellets: 1, spread: 0,   aim: 1,   speed: 150, range: 210, pierce: 40, splash: 0, col: '#c08bff', len: 8 },
+  tesla:   { name: 'TESLA',    rate: 1.6,  dmg: 1.3,  pellets: 1, spread: 0.2, aim: 1,   speed: 70,  range: 210, pierce: 0,  splash: 0, col: '#b8a6ff', len: 2, chain: 3 },
 };
-const GUNS = ['smg', 'shotgun', 'laser', 'rocket'];
-const CRATE_LABEL = { fire: 'FIRE+', tank: 'TANK', heli: 'HELI' };
+const GUNS = ['smg', 'shotgun', 'laser', 'rocket', 'minigun', 'flamer', 'railgun', 'tesla'];
+const CRATE_LABEL = { fire: 'FIRE+', tank: 'TANK', heli: 'HELI', shield: 'SHIELD', coins: 'COINS', freeze: 'FREEZE', nuke: 'NUKE' };
+const LOOT = [['weapon', 30], ['fire', 10], ['troops', 15], ['tank', 11], ['heli', 9], ['shield', 7], ['coins', 8], ['freeze', 5], ['nuke', 3]];
 
 let state = 'title';
 let level = 1, best = 1, totalKills = 0;
@@ -479,6 +484,7 @@ let zombies = [], bullets = [], gates = [], crates = [], parts = [], decals = []
 let boss = null, bossPhase = false, endTimer = 0, fireAcc = 0, shake = 0, hurt = 0, t = 0, countPop = 0;
 let tank = null, heli = null, lastBoom = 0;
 let perks = {}, drops = [], dropNo = 0, offer = [], pendingBooms = [];
+let shieldT = 0, freezeT = 0, flashT = 0;
 
 // Perk cards offered at supply drops (pick one of three); they last until the level ends
 const PERKS = [
@@ -547,9 +553,11 @@ function makeGates(pos) {
   for (const [side, g] of [[-1, a], [1, b]]) gates.push({ zAbs: pos, side, op: g.op, v: g.v, acc: 0, hitT: 0, pop: 0, done: false });
 }
 function makeCrate(zAbs) {
-  const r = Math.random();
-  const kind = r < 0.36 ? 'weapon' : r < 0.5 ? 'fire' : r < 0.68 ? 'troops' : r < 0.86 ? 'tank' : 'heli';
-  const hp = (28 + 24 * D()) * (kind === 'tank' || kind === 'heli' ? 1.6 : 1) * (1 - 0.1 * meta.salvage);
+  let r = Math.random() * LOOT.reduce((a, l) => a + l[1], 0), li = 0;
+  while ((r -= LOOT[li][1]) > 0) li++;
+  const kind = LOOT[li][0];
+  const tough = { tank: 1.6, heli: 1.6, nuke: 1.8, shield: 1.2, freeze: 1.2 }[kind] || 1;
+  const hp = (28 + 24 * D()) * tough * (1 - 0.1 * meta.salvage);
   const gun = kind === 'weapon' ? pick(GUNS) : null;
   const troops = 5 + level * 3;
   const label = gun ? WEAPONS[gun].name : kind === 'troops' ? `+${troops}` : CRATE_LABEL[kind];
@@ -559,7 +567,7 @@ function makeCrate(zAbs) {
 function startLevel() {
   dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3 + 2 * meta.squad; px = 0; targetPx = 0; camX = 0; kills = 0;
   fireLvl = 1; weapon = 'rifle'; tank = null; heli = null;
-  perks = {}; dropNo = 0; drops = [L * 0.34, L * 0.68]; pendingBooms = [];
+  perks = {}; dropNo = 0; drops = [L * 0.34, L * 0.68]; pendingBooms = []; shieldT = 0; freezeT = 0; flashT = 0;
   zombies = []; bullets = []; gates = []; crates = []; parts = []; decals = []; texts = []; flashes = [];
   boss = null; bossPhase = false; endTimer = 0; fireAcc = 0; shake = 0; hurt = 0;
   let pos = 40, i = 0;
@@ -668,6 +676,22 @@ function openCrate(c) {
     shake = 1;
     return;
   }
+  if (c.kind === 'shield') { shieldT = 6; floatText('SHIELD UP', '#7fd0ff', 28); sfx.crate(); return; }
+  if (c.kind === 'coins') {
+    const v = 15 + level * 8; meta.coins += v; saveMeta();
+    burst(c.x, 0.7, c.zAbs, 20, ['#f2c230', '#ffe48a', '#c99a14'], 5, 0.9, 0.12);
+    floatText(`+${v} COINS`, '#f2c230', 26); sfx.crate(); return;
+  }
+  if (c.kind === 'freeze') {
+    freezeT = 4; for (const z of zombies) z.slow = Math.max(z.slow || 0, 4);
+    floatText('FREEZE!', '#7fd0ff', 30); sfx.gate(true); return;
+  }
+  if (c.kind === 'nuke') {
+    flashT = 0.7; shake = 1;
+    for (const z of zombies) if (!z.dead && z.z < FAR) killZombie(z, true);
+    damageBoss(boss ? boss.max * 0.15 : 0);
+    floatText('NUKE!', '#f2c230', 36); sfx.boom(); sfx.cannon(); return;
+  }
   if (c.kind === 'troops') {
     const n = Math.round(c.troops * (1 + 0.3 * pk('recruit')));
     N += n; countPop = 1;
@@ -738,7 +762,7 @@ function choosePerk(i) {
   state = 'play'; showOnly(null);
 }
 // bounce a round from the zombie it hit to another one just ahead of it
-function bounce(b, from) {
+function bounce(b, from, keep) {
   let best = null, bd = 4.5;
   for (const z of zombies) {
     if (z.dead || z === from) continue;
@@ -749,14 +773,14 @@ function bounce(b, from) {
   }
   if (!best) return false;
   b.vx = clamp((best.x - b.x) / Math.max(0.05, (best.zAbs - from.zAbs + 0.4) / b.w.speed), -30, 30);
-  b.dmg *= 0.6; b.last = from; b.bounces = (b.bounces || 0) + 1;
+  b.dmg *= keep; b.last = from; b.bounces = (b.bounces || 0) + 1;
   return true;
 }
 function shoot(x, y, z, w, dmg, vx, vy) {
   bullets.push({ x, y, z, vx, vy: vy || 0, dmg, w, z0: z, pierce: w.pierce, last: null, gate: null, dead: false });
 }
-const SHELL = { name: 'SHELL', speed: 36, range: 100, pierce: 0, splash: 2, col: '#ffcc66', len: 0.6, big: true };
-const HROCKET = { name: 'ROCKET', speed: 34, range: 100, pierce: 0, splash: 1.4, col: '#ff8a3a', len: 0.6, big: true };
+const SHELL = { name: 'SHELL', speed: 40, range: 120, pierce: 0, splash: 2, col: '#ffcc66', len: 0.6, big: true };
+const HROCKET = { name: 'ROCKET', speed: 38, range: 120, pierce: 0, splash: 1.4, col: '#ff8a3a', len: 0.6, big: true };
 
 /* ---------- update ---------- */
 function update(dt) {
@@ -783,6 +807,8 @@ function update(dt) {
   const prevDist = dist;
   dist += speed * dt;
   if (live && drops.length && dist >= drops[0]) { drops.shift(); openDrop(); }
+
+  shieldT = Math.max(0, shieldT - dt); freezeT = Math.max(0, freezeT - dt); flashT = Math.max(0, flashT - dt);
 
   // gates
   for (const g of gates) {
@@ -836,7 +862,7 @@ function update(dt) {
     tank.recoil = Math.max(0, tank.recoil - dt * 4);
     tank.fireT -= dt;
     if (firing && tank.fireT <= 0) {
-      const tgt = pickTarget(5, 52, 10);
+      const tgt = pickTarget(5, 90, 10);
       if (tgt) {
         tank.fireT = 1.4 / (1 + 0.35 * (tank.lvl - 1));
         const bz = tankZ + 1;
@@ -853,7 +879,7 @@ function update(dt) {
     heli.x += (clamp(px + Math.sin(t * 1.1) * 2, -4, 4) - heli.x) * Math.min(1, dt * 2);
     heli.fireT -= dt;
     if (firing && heli.fireT <= 0 && heli.t > 0) {
-      const tgt = pickTarget(6, 50, 10);
+      const tgt = pickTarget(6, 80, 10);
       if (tgt) {
         heli.fireT = 0.45; heli.side = -heli.side;
         const hx = heli.x + heli.side * 0.7, hz = 3.5, travel = Math.max(0.3, (tgt.z - hz) / HROCKET.speed);
@@ -867,7 +893,12 @@ function update(dt) {
   for (const z of zombies) {
     if (z.dead) continue;
     if (z.slow > 0) z.slow -= dt;
-    if (z.zAbs - dist < 88) { const sp = z.spd * (z.slow > 0 ? 0.5 : 1); z.zAbs -= sp * dt; z.ph += dt * sp * 4.2; }
+    if (z.burn > 0) {
+      z.burn -= dt; z.hp -= z.burnDps * dt;
+      if (Math.random() < dt * 10) parts.push({ x: z.x + rnd(-0.2, 0.2), y: z.h * 0.7, zAbs: z.zAbs, vx: 0, vy: 2.5, vz: 0, life: 0.4, c: pick(['#ff7a2a', '#ffd23f']), s: 0.12 });
+      if (z.hp <= 0) { killZombie(z, true); continue; }
+    }
+    { const sp = z.spd * (z.slow > 0 ? 0.5 : 1) * (freezeT > 0 ? 0.08 : 1) * (z.zAbs - dist < 88 ? 1 : 0.25); z.zAbs -= sp * dt; z.ph += dt * sp * 4.2; }
     z.z = z.zAbs - dist;
     if (z.z < 24) {
       const tx = px + z.off * R * 0.9;
@@ -882,7 +913,7 @@ function update(dt) {
       if (tank.hp <= 0) destroyTank(tankZ);
     } else if (z.z < R * 0.7 + z.r && z.z > -1.5 && Math.abs(z.x - px) < R + z.r * 0.6) {
       killZombie(z, false);
-      if (Math.random() < 0.15 * pk('armor')) burst(z.x, 1, z.zAbs, 4, ['#cfe2ff', '#ffffff'], 3, 0.3, 0.08);
+      if (shieldT > 0 || Math.random() < 0.15 * pk('armor')) burst(z.x, 1, z.zAbs, 4, ['#cfe2ff', '#ffffff'], 3, 0.3, 0.08);
       else { N -= z.bite; hurt = 0.35; shake = Math.min(1, shake + 0.35); countPop = 1; sfx.bite(); }
     } else if (z.z < -6) z.dead = true;
   }
@@ -895,7 +926,7 @@ function update(dt) {
 
   // boss
   if (boss && !boss.dead) {
-    boss.y = Math.max(0, boss.y - dt * 14); if (boss.y > 0) { if (boss.y - dt * 14 <= 0) { shake = 1; burst(boss.x, 0.3, boss.zAbs, 30, ['#c79d62', '#8b7752', '#55504a'], 6, 1, 0.2); } } else boss.zAbs -= (boss.zAbs - dist > 12 ? 4 : 1.6) * dt;
+    boss.y = Math.max(0, boss.y - dt * 14); if (boss.y > 0) { if (boss.y - dt * 14 <= 0) { shake = 1; burst(boss.x, 0.3, boss.zAbs, 30, ['#c79d62', '#8b7752', '#55504a'], 6, 1, 0.2); } } else boss.zAbs -= (boss.zAbs - dist > 12 ? 4 : 1.6) * (freezeT > 0 ? 0.1 : 1) * dt;
     boss.ph += dt * 3; boss.fl -= dt;
     const bz = boss.zAbs - dist;
     boss.x += (px - boss.x) * dt * 0.5;
@@ -910,7 +941,8 @@ function update(dt) {
       boss.biteT -= dt;
       if (boss.biteT <= 0) {
         boss.biteT = 0.4;
-        if (tank) { tank.hp -= 6 + 3 * D(); shake = 0.6; if (tank.hp <= 0) destroyTank(tankZ); }
+        if (shieldT > 0) shake = 0.4;
+        else if (tank) { tank.hp -= 6 + 3 * D(); shake = 0.6; if (tank.hp <= 0) destroyTank(tankZ); }
         else { N -= Math.max(Math.round(3 + D()), Math.round(N * 0.03)); hurt = 0.4; shake = 1; countPop = 1; }
         sfx.bite();
       }
@@ -918,7 +950,7 @@ function update(dt) {
   }
 
   // bullets (only zombies within range can be hit)
-  const near = zombies.filter(z => !z.dead && z.z > -1 && z.z < FAR);
+  const near = zombies.filter(z => !z.dead && z.z > -1 && z.z < FAR).sort((a, b) => a.z - b.z);
   for (const b of bullets) {
     const w = b.w;
     const z0 = b.z; b.z += w.speed * dt; b.x += b.vx * dt; b.y = Math.max(0.5, b.y + b.vy * dt); const z1 = b.z;
@@ -943,7 +975,10 @@ function update(dt) {
       const cz = c.zAbs - dist;
       if (cz >= z0 - 0.7 && cz <= z1 + 0.7 && Math.abs(b.x - c.x) < 0.9 && cz < hz) { hit = c; hz = cz; kind = 'crate'; }
     }
-    for (const z of near) {
+    let lo = 0, hi = near.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (near[m].z < z0 - 0.45) lo = m + 1; else hi = m; }
+    for (let ni = lo; ni < near.length && near[ni].z <= z1 + 0.45; ni++) {
+      const z = near[ni];
       if (z.dead || z === b.last) continue;
       if (z.z >= z0 - 0.45 && z.z <= z1 + 0.45 && Math.abs(b.x - z.x) < z.r + 0.08 && z.z < hz) { hit = z; hz = z.z; kind = 'z'; }
     }
@@ -962,9 +997,10 @@ function update(dt) {
     } else if (kind === 'z') {
       const crit = Math.random() < 0.12 * pk('crit');
       if (crit) burst(b.x, 1.4, hit.zAbs, 2, ['#ffe066', '#ffffff'], 3, 0.25, 0.09);
+      if (w.burn) { hit.burn = 2; hit.burnDps = Math.max(hit.burnDps || 0, b.dmg * w.burn); }
       damageZombie(hit, b.dmg * (crit ? 3 : 1), true);
       if (b.pierce > 0) { b.pierce--; b.last = hit; }
-      else if (!((b.bounces || 0) < pk('ricochet') && bounce(b, hit))) b.dead = true;
+      else if (!((b.bounces || 0) < pk('ricochet') + (w.chain || 0) && bounce(b, hit, w.chain ? 0.85 : 0.6))) b.dead = true;
     } else {
       b.dead = true;
       damageBoss(b.dmg);
@@ -1018,6 +1054,12 @@ function drawWorld() {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#d9b47a'); sky.addColorStop(0.5, '#c79d62'); sky.addColorStop(1, '#b38750');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  const hy = CY - FOC * Math.tan(PITCH) + shakeY;
+  if (hy > 0) {
+    const sk = ctx.createLinearGradient(0, 0, 0, hy);
+    sk.addColorStop(0, '#6f86a8'); sk.addColorStop(0.7, '#d8b98e'); sk.addColorStop(1, '#f1cf96');
+    ctx.fillStyle = sk; ctx.fillRect(0, 0, W, hy + 1);
+  }
 
   // scrolling sand bands
   const band = 7, off = dist % band;
@@ -1092,7 +1134,7 @@ function drawZombie(z) {
   const h = z.h * p[2], w = h * img.width / img.height;
   ctx.drawImage(img, p[0] - w / 2, p[1] - h, w, h);
   if (z.fl > 0) { ctx.globalAlpha = z.type === 'brute' ? 0.4 : 0.8; ctx.drawImage(set.flash[fr], p[0] - w / 2, p[1] - h, w, h); ctx.globalAlpha = 1; }
-  if (z.slow > 0) { ctx.globalAlpha = 0.35; ctx.fillStyle = '#7fd0ff'; ctx.fillRect(p[0] - w * 0.3, p[1] - h * 0.15, w * 0.6, h * 0.15); ctx.globalAlpha = 1; }
+  if (z.slow > 0 || freezeT > 0) { ctx.globalAlpha = 0.35; ctx.fillStyle = '#7fd0ff'; ctx.fillRect(p[0] - w * 0.3, p[1] - h * 0.15, w * 0.6, h * 0.15); ctx.globalAlpha = 1; }
   if (z.type === 'brute' && z.hp < z.max) {
     const bw = 1.2 * p[2], by = p[1] - h - 0.25 * p[2];
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(p[0] - bw / 2, by, bw, Math.max(3, 0.12 * p[2]));
@@ -1118,23 +1160,32 @@ function drawBarrel(c) {
   ctx.fillStyle = '#1d1b1f'; ctx.fillText('!', (bl[0] + br[0]) / 2, tl[1] + (bl[1] - tl[1]) * 0.51);
 }
 
+// labels fade in as objects approach, so the horizon doesn't fill with overlapping numbers
+const labelAlpha = (z, from) => clamp((from - z) / 25, 0, 1);
+
 function drawCrate(c) {
   if (c.kind === 'barrel') return drawBarrel(c);
   const z = c.zAbs - dist, s = 0.65, h = 1.3;
   drawShadow(c.x, z, 0.9);
   const fl = c.fl > 0;
-  const unit = c.kind === 'tank' || c.kind === 'heli' || c.kind === 'troops';
-  quad(proj(c.x - s, h, z + s), proj(c.x + s, h, z + s), proj(c.x + s, h, z - s), proj(c.x - s, h, z - s), fl ? '#fff3dc' : unit ? '#5b86c9' : '#c48a46');
+  const blue = ['#5b86c9', '#3d68ad', '#ffffff', '#14264a'], ice = ['#8fd3ef', '#4f9cc4', '#ffffff', '#123a52'];
+  const [cTop, cFront, cText, cEdge] = { tank: blue, heli: blue, troops: blue, shield: ice, freeze: ice,
+    coins: ['#f2c230', '#c99a14', '#ffffff', '#5a4300'], nuke: ['#6a7a3a', '#4c5a26', '#f2c230', '#1d2410'] }[c.kind]
+    || ['#c48a46', '#a8743a', '#f2c230', '#3a2610'];
+  quad(proj(c.x - s, h, z + s), proj(c.x + s, h, z + s), proj(c.x + s, h, z - s), proj(c.x - s, h, z - s), fl ? '#fff3dc' : cTop);
   const a = proj(c.x - s, 0, z - s), b = proj(c.x + s, 0, z - s), cc = proj(c.x + s, h, z - s), d = proj(c.x - s, h, z - s);
-  quad(a, b, cc, d, fl ? '#ffe9c4' : unit ? '#3d68ad' : '#a8743a');
+  quad(a, b, cc, d, fl ? '#ffe9c4' : cFront);
   if (!a || !cc) return;
   ctx.strokeStyle = '#6e4a22'; ctx.lineWidth = Math.max(1, 0.06 * a[2]);
   ctx.strokeRect(d[0], d[1], cc[0] - d[0], a[1] - d[1]);
   ctx.beginPath(); ctx.moveTo(d[0], d[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
   const m = proj(c.x, h * 0.5, z - s), top = proj(c.x, h + 0.5, z);
+  const la = labelAlpha(z, 95);
+  if (la <= 0) return;
+  ctx.globalAlpha = la;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `${Math.max(8, Math.min(0.36, 1.5 / c.label.length) * m[2])}px Bungee, Impact, sans-serif`;
-  ctx.fillStyle = unit ? '#ffffff' : '#f2c230'; ctx.strokeStyle = unit ? '#14264a' : '#3a2610'; ctx.lineWidth = Math.max(2, 0.08 * m[2]);
+  ctx.fillStyle = cText; ctx.strokeStyle = cEdge; ctx.lineWidth = Math.max(2, 0.08 * m[2]);
   ctx.strokeText(c.label, m[0], m[1]); ctx.fillText(c.label, m[0], m[1]);
   if (top) {
     ctx.font = `${Math.max(10, 0.45 * top[2])}px Bungee, Impact, sans-serif`;
@@ -1142,6 +1193,7 @@ function drawCrate(c) {
     const txt = String(Math.ceil(c.hp));
     ctx.strokeText(txt, top[0], top[1]); ctx.fillText(txt, top[0], top[1]);
   }
+  ctx.globalAlpha = 1;
 }
 
 function drawGate(g) {
@@ -1155,12 +1207,16 @@ function drawGate(g) {
   ctx.strokeStyle = good ? '#cfe2ff' : '#ffc2b8'; ctx.lineWidth = Math.max(2, 0.1 * bl[2]);
   ctx.beginPath(); ctx.moveTo(bl[0], bl[1]); ctx.lineTo(tl[0], tl[1]); ctx.lineTo(tr[0], tr[1]); ctx.lineTo(br[0], br[1]); ctx.stroke();
   const m = proj((x0 + x1) / 2, H2 * 0.55, z);
-  const size = Math.max(12, 1.15 * m[2]) * (1 + g.pop * 0.25);
+  const la = labelAlpha(z, 120);
+  if (la <= 0) return;
+  const size = Math.max(10, 1.15 * m[2]) * (1 + g.pop * 0.25);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `${size}px Bungee, Impact, sans-serif`;
   ctx.lineWidth = Math.max(3, size * 0.12); ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.fillStyle = '#fff';
   const txt = `${g.op}${g.v}`;
+  ctx.globalAlpha = la;
   ctx.strokeText(txt, m[0], m[1]); ctx.fillText(txt, m[0], m[1]);
+  ctx.globalAlpha = 1;
 }
 
 function drawBoss(b) {
@@ -1268,7 +1324,7 @@ function draw() {
   }
   for (const [w, segs] of groups) {
     for (const [col, lw] of [[w.col, 6], ['#ffffff', 1.6]]) {
-      ctx.strokeStyle = col; ctx.globalAlpha = lw > 2 ? 0.35 : 0.9; ctx.lineWidth = w === WEAPONS.laser ? lw * 0.7 : lw;
+      ctx.strokeStyle = col; ctx.globalAlpha = lw > 2 ? 0.35 : 0.9; ctx.lineWidth = w === WEAPONS.laser || w === WEAPONS.railgun ? lw * 0.7 : w.thick ? lw * 1.8 : lw;
       ctx.beginPath();
       for (let i = 0; i < segs.length; i += 2) { ctx.moveTo(segs[i][0], segs[i][1]); ctx.lineTo(segs[i + 1][0], segs[i + 1][1]); }
       ctx.stroke();
@@ -1293,12 +1349,20 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
+  if (shieldT > 0 && (shieldT > 1.5 || Math.floor(t * 8) % 2)) {
+    const R = squadR(Math.max(1, nVis)) + 0.5, c = proj(px, 0.7, 0);
+    if (c) {
+      ctx.fillStyle = 'rgba(127,208,255,.14)'; ctx.strokeStyle = 'rgba(160,220,255,.8)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(c[0], c[1] - 0.4 * c[2], R * c[2], R * c[2] * 0.75, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+  }
   if (heli) drawHeli();
 
   // far haze hides spawn pop-in
-  const hz = ctx.createLinearGradient(0, 0, 0, H * 0.13);
-  hz.addColorStop(0, 'rgba(222,190,138,1)'); hz.addColorStop(0.45, 'rgba(222,190,138,.6)'); hz.addColorStop(1, 'rgba(222,190,138,0)');
-  ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H * 0.13);
+  const hy = CY - FOC * Math.tan(PITCH) + shakeY, hb = H * 0.1;
+  const hz = ctx.createLinearGradient(0, hy - 4, 0, hy + hb);
+  hz.addColorStop(0, 'rgba(241,207,150,.95)'); hz.addColorStop(0.35, 'rgba(232,198,145,.5)'); hz.addColorStop(1, 'rgba(222,190,138,0)');
+  ctx.fillStyle = hz; ctx.fillRect(0, hy - 4, W, hb + 4);
 
   // squad count badge
   {
@@ -1333,6 +1397,7 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
+  if (flashT > 0) { ctx.fillStyle = `rgba(255,248,225,${Math.min(1, flashT * 1.6)})`; ctx.fillRect(0, 0, W, H); }
   if (hurt > 0) {
     const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
     v.addColorStop(0, 'rgba(210,30,30,0)'); v.addColorStop(1, `rgba(210,30,30,${hurt})`);
