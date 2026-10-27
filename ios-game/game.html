@@ -142,7 +142,7 @@ body{
     <ul class="rules">
       <li><span class="tag good">+5 ×2</span>Drive through blue gates to grow your squad.</li>
       <li><span class="tag bad">−8 ÷2</span>Avoid red gates, or shoot them until they turn blue. Bullets fly through gates.</li>
-      <li><span class="tag crate">CRATE</span>Shoot crates for 8 guns, troops, tanks, helicopters, shields, freezes and nukes. Red barrels explode.</li>
+      <li><span class="tag crate">CRATE</span>Shoot crates for 8 guns, troops, tanks, helicopters, shields, freezes and nukes. Red barrels explode. Green spitters shoot down helicopters.</li>
       <li><span class="tag drop">DROP</span>Pick a perk at each supply drop. Spend coins on upgrades between levels.</li>
     </ul>
     <p>Drag anywhere to steer. Your squad fires on its own. Kill the boss at the end of the road.</p>
@@ -371,8 +371,9 @@ const ZT = {
   walker: { hp: 1,   spd: 1.3, r: 0.32, h: 1.75, bite: 1 },
   runner: { hp: 0.7, spd: 3.4, r: 0.30, h: 1.70, bite: 1 },
   brute:  { hp: 10,  spd: 0.9, r: 0.60, h: 2.70, bite: 8 },
+  spitter: { hp: 2.2, spd: 1.0, r: 0.32, h: 1.80, bite: 1 },
 };
-const SPR = { walker: [], runner: [], brute: [] };
+const SPR = { walker: [], runner: [], brute: [], spitter: [] };
 let SOLDIER = [], BOSS = [], TANK = null, HELI = null;
 function buildSprites() {
   const looks = {
@@ -383,6 +384,7 @@ function buildSprites() {
       { skin: '#a0a48e', hand: '#848873', shirt: '#4f6b4a', pants: '#3b352f', hair: '#6b5a44' },
     ],
     runner: [{ skin: '#b0a893', hand: '#928a76', shirt: '#9c3b34', pants: '#2b2f38', hair: '#1f1b18' }],
+    spitter: [{ skin: '#a9c46a', hand: '#86a04f', shirt: '#5d7d2a', pants: '#33402a', hair: '#2a3a1a' }],
     brute: [{ skin: '#8d9a7c', hand: '#727f63', shirt: '#5c5348', pants: '#2c2925', hair: '#1f1d1b' }],
   };
   for (const type in looks) {
@@ -469,15 +471,16 @@ let level = 1, best = 1, totalKills = 0;
 let dist = 0, speed = 0, L = 260, N = 6, px = 0, targetPx = 0, fireLvl = 1, weapon = 'rifle', kills = 0;
 let zombies = [], bullets = [], gates = [], crates = [], parts = [], decals = [], texts = [], flashes = [];
 let boss = null, bossPhase = false, endTimer = 0, fireAcc = 0, shake = 0, hurt = 0, t = 0, countPop = 0;
-let tank = null, heli = null, lastBoom = 0;
+let tanks = [], heli = null, spits = [], lastBoom = 0;
+const maxTanks = () => 1 + (level >= 6) + (level >= 11);
 let perks = {}, drops = [], dropNo = 0, offer = [], pendingBooms = [];
 let shieldT = 0, freezeT = 0, flashT = 0;
 
 // Perk cards offered at supply drops (pick one of three); they last until the level ends
 const PERKS = [
   { id: 'multi',   rar: 'epic',   max: 2, name: 'Multishot',     desc: 'Every soldier fires an extra round.' },
-  { id: 'tankNow', rar: 'epic',   max: 9, name: 'Call a tank',    desc: 'A tank joins now, or yours is repaired and upgraded.' },
-  { id: 'heliNow', rar: 'epic',   max: 9, name: 'Air support',    desc: 'A helicopter covers you for 18 seconds.' },
+  { id: 'tankNow', rar: 'epic',   max: 9, name: 'Call a tank',    desc: 'Another tank joins (up to 3 in later levels), or your weakest is repaired and upgraded.' },
+  { id: 'heliNow', rar: 'epic',   max: 9, name: 'Air support',    desc: 'A helicopter joins until shot down, or yours is repaired and upgraded.' },
   { id: 'ricochet',rar: 'rare',   max: 3, name: 'Ricochet',       desc: 'Rounds bounce to another zombie at 60% damage.' },
   { id: 'boom',    rar: 'rare',   max: 3, name: 'Volatile',       desc: '25% of zombies you shoot explode on death.' },
   { id: 'frost',   rar: 'rare',   max: 1, name: 'Frost rounds',   desc: 'Hit zombies slow to half speed.' },
@@ -512,17 +515,18 @@ const lvlHp = () => 1 + 0.5 * (D() - 1);
 function makeZombie(type, x, zAbs) {
   const d = ZT[type], hp = d.hp * lvlHp();
   return { type, x, zAbs, z: zAbs - dist, hp, max: hp, spd: d.spd * rnd(0.85, 1.15) * (1 + 0.04 * D()), r: d.r, h: d.h, bite: d.bite,
-    v: ri(0, SPR[type].length - 1), ph: Math.random() * 6, off: rnd(-1, 1), fl: 0, dead: false };
+    v: ri(0, SPR[type].length - 1), spitT: rnd(1, 3), ph: Math.random() * 6, off: rnd(-1, 1), fl: 0, dead: false };
 }
 function makeWave(pos, big) {
   const frac = pos / L;
   let n = Math.round((18 + D() * 7) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
   n = Math.min(pos < 70 ? 6 + D() : 200, n);
   const depth = 3 + n * 0.05;
+  const pSpit = level >= 5 && pos >= 70 ? Math.min(0.035, 0.006 * D()) : 0;
   const pBrute = pos < 70 ? 0 : Math.min(0.16, 0.03 * D()), pRunner = Math.min(0.3, 0.1 + 0.03 * D());
   for (let j = 0; j < n; j++) {
     const r = Math.random();
-    const type = r < pBrute ? 'brute' : r < pBrute + pRunner ? 'runner' : 'walker';
+    const type = r < pBrute ? 'brute' : r < pBrute + pSpit ? 'spitter' : r < pBrute + pSpit + pRunner ? 'runner' : 'walker';
     zombies.push(makeZombie(type, rnd(-ROAD + 0.5, ROAD - 0.5), pos + rnd(0, depth)));
   }
   // explosive barrels sit inside the horde: shoot them when it walks past
@@ -533,9 +537,11 @@ function makeWave(pos, big) {
 }
 function makeGates(pos) {
   const good = () => Math.random() < 0.2 ? { op: '×', v: 2 } : Math.random() < 0.3 ? { op: '+', v: ri(1, 3) } : { op: '+', v: ri(3, 6) + level * 2 };
-  const bad = () => pick([{ op: '−', v: ri(5, 10) + Math.round(D() * 3) }, { op: '÷', v: 2 }, { op: '−', v: ri(3, 6) + Math.round(D()) }]);
+  const bad = () => pick([{ op: '−', v: ri(5, 10) + Math.round(D() * 2) }, { op: '÷', v: 2 }, { op: '−', v: ri(3, 6) + Math.round(D()) }]);
+  const mild = () => ({ op: '−', v: ri(2, 4) + Math.round(D() / 2) });
   const r = Math.random();
-  let a = r < 0.08 ? bad() : good(), b = r < 0.7 ? bad() : good();
+  // a double-red pair never opens the level, and always has one side that can be shot blue in time
+  let a = r < 0.08 && pos > 80 ? mild() : good(), b = r < 0.7 ? bad() : good();
   if (Math.random() < 0.5) [a, b] = [b, a];
   for (const [side, g] of [[-1, a], [1, b]]) gates.push({ zAbs: pos, side, op: g.op, v: g.v, acc: 0, hitT: 0, pop: 0, done: false });
 }
@@ -553,7 +559,7 @@ function makeCrate(zAbs) {
 
 function startLevel() {
   dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3 + 2 * meta.squad; px = 0; targetPx = 0; camX = 0; kills = 0;
-  fireLvl = 1; weapon = 'rifle'; tank = null; heli = null;
+  fireLvl = 1; weapon = 'rifle'; tanks = []; heli = null; spits = [];
   perks = {}; dropNo = 0; drops = [L * 0.34, L * 0.68]; pendingBooms = []; shieldT = 0; freezeT = 0; flashT = 0;
   zombies = []; bullets = []; gates = []; crates = []; parts = []; decals = []; texts = []; flashes = [];
   boss = null; bossPhase = false; endTimer = 0; fireAcc = 0; shake = 0; hurt = 0;
@@ -571,7 +577,7 @@ function startLevel() {
 function spawnBoss() {
   const w = WEAPONS[weapon];
   const squadDps = N * w.rate * w.dmg * w.pellets * (1 + 0.3 * (fireLvl - 1));
-  const support = (tank ? 16 * lvlHp() / 1.4 * 2 : 0) + (heli ? 7 * lvlHp() / 0.45 * 2 : 0);
+  const support = tanks.length * 16 * lvlHp() / 1.4 * 2 + (heli ? 7 * lvlHp() / 0.45 * 2 : 0);
   const hp = Math.round(Math.max(420 * Math.pow(D(), 1.5), (squadDps + support) * (5.5 + D() * 0.6)));
   boss = { x: 0, zAbs: dist + 28, y: 9, hp, max: hp, ph: 0, fl: 0, spawnT: 2.5, biteT: 0, dead: false };
   shake = 1;
@@ -636,7 +642,8 @@ function hitGate(g, dmg) {
   g.hitT = 0.08;
   if (g.op === '×' || g.op === '÷') return;
   g.acc += dmg;
-  const step = Math.max(4 + D() * 1.5, N * 0.08);
+  // red gates count down faster than blue ones count up, so a bad pair can be fixed in time
+  const step = Math.max(2 + D() * 0.5, N * 0.05) * (g.op === '+' ? 2 : 1);
   while (g.acc >= step) {
     g.acc -= step; g.pop = 1;
     if (g.op === '+') g.v = Math.min(60, g.v + 1);
@@ -665,7 +672,7 @@ function openCrate(c) {
   }
   if (c.kind === 'shield') { shieldT = 6; floatText('SHIELD UP', '#7fd0ff', 28); sfx.crate(); return; }
   if (c.kind === 'coins') {
-    const v = 15 + level * 8; meta.coins += v; saveMeta();
+    const v = 10 + level * 4; meta.coins += v; saveMeta();
     burst(c.x, 0.7, c.zAbs, 20, ['#f2c230', '#ffe48a', '#c99a14'], 5, 0.9, 0.12);
     floatText(`+${v} COINS`, '#f2c230', 26); sfx.crate(); return;
   }
@@ -692,11 +699,18 @@ function openCrate(c) {
   else if (c.kind === 'fire') { fireLvl = Math.min(5, fireLvl + 1); floatText(fireLvl >= 5 ? 'MAX FIRE RATE' : 'FIRE RATE UP', '#f2c230', 24); }
   else if (c.kind === 'tank') {
     const max = 40 + 20 * level;
-    if (tank) { tank.lvl = Math.min(3, tank.lvl + 1); tank.max = max * (1 + 0.5 * (tank.lvl - 1)); tank.hp = tank.max; floatText('TANK UPGRADED', '#7fb2ff', 24); }
-    else { tank = { x: px, hp: max, max, lvl: 1, fireT: 1, recoil: 0 }; floatText('TANK JOINS!', '#7fb2ff', 28); }
+    if (tanks.length < maxTanks()) {
+      tanks.push({ x: px, hp: max, max, lvl: 1, fireT: 1, recoil: 0 });
+      floatText(tanks.length > 1 ? `TANK ${tanks.length} JOINS!` : 'TANK JOINS!', '#7fb2ff', 28);
+    } else {
+      const tk = tanks.reduce((a, b) => a.hp / a.max <= b.hp / b.max ? a : b);
+      tk.lvl = Math.min(3, tk.lvl + 1); tk.max = max * (1 + 0.5 * (tk.lvl - 1)); tk.hp = tk.max;
+      floatText('TANK UPGRADED', '#7fb2ff', 24);
+    }
   } else {
-    if (heli) { heli.t += 16; floatText('HELI EXTENDED', '#7fb2ff', 24); }
-    else { heli = { x: px, t: 18, fireT: 0.6, side: 1 }; floatText('AIR SUPPORT!', '#7fb2ff', 28); }
+    const max = 50 + 15 * level;
+    if (heli) { heli.lvl = Math.min(3, heli.lvl + 1); heli.max = max * (1 + 0.4 * (heli.lvl - 1)); heli.hp = heli.max; floatText('HELI REPAIRED', '#7fb2ff', 24); }
+    else { heli = { x: px, hp: max, max, lvl: 1, fireT: 0.6, side: 1, fl: 0 }; floatText('AIR SUPPORT!', '#7fb2ff', 28); }
   }
 }
 
@@ -781,7 +795,7 @@ function update(dt) {
   if (keys.left) targetPx -= 9 * dt;
   if (keys.right) targetPx += 9 * dt;
   let lim = Math.max(0, ROAD - 0.3 - R * 0.6);
-  if (tank) lim = Math.min(lim, ROAD - 1.3);
+  if (tanks.length) lim = Math.min(lim, ROAD - 1.3);
   targetPx = clamp(targetPx, -lim, lim);
   px += (targetPx - px) * Math.min(1, dt * 16);
   px = clamp(px, -lim, lim);
@@ -844,36 +858,36 @@ function update(dt) {
   flashes = flashes.filter(f => f.t > 0);
 
   // tank: rolls ahead of the squad, shells the horde, soaks bites
-  if (tank) {
-    tank.x += (px - tank.x) * Math.min(1, dt * 6);
+  const offs = [[0], [-1.3, 1.3], [-2.5, 0, 2.5]][tanks.length - 1] || [];
+  tanks.forEach((tank, i) => {
+    tank.x += (clamp(px + offs[i], -ROAD + 1.15, ROAD - 1.15) - tank.x) * Math.min(1, dt * 6);
     tank.recoil = Math.max(0, tank.recoil - dt * 4);
     tank.fireT -= dt;
     if (firing && tank.fireT <= 0) {
       const tgt = pickTarget(5, 90, 10);
       if (tgt) {
-        tank.fireT = 1.4 / (1 + 0.35 * (tank.lvl - 1));
+        tank.fireT = 1.4 / (1 + 0.35 * (tank.lvl - 1)) * rnd(0.9, 1.1);
         const bz = tankZ + 1;
         shoot(tank.x, 1.1, bz, SHELL, 16 * lvlHp() * (1 + 0.5 * (tank.lvl - 1)), (tgt.x - tank.x) / Math.max(1, (tgt.z - bz) / SHELL.speed));
         tank.recoil = 1; sfx.cannon();
         burst(tank.x, 1.2, dist + bz, 4, ['#d8d0c0', '#9a948a'], 2, 0.4, 0.15);
       }
     }
-  }
+  });
 
-  // helicopter: hovers over the squad and fires rockets for a limited time
+  // helicopter: hovers over the squad and fires rockets until spitters bring it down
   if (heli) {
-    heli.t -= dt;
+    heli.fl -= dt;
     heli.x += (clamp(px + Math.sin(t * 1.1) * 2, -4, 4) - heli.x) * Math.min(1, dt * 2);
     heli.fireT -= dt;
-    if (firing && heli.fireT <= 0 && heli.t > 0) {
+    if (firing && heli.fireT <= 0) {
       const tgt = pickTarget(6, 80, 10);
       if (tgt) {
-        heli.fireT = 0.45; heli.side = -heli.side;
+        heli.fireT = 0.45 / (1 + 0.35 * (heli.lvl - 1)); heli.side = -heli.side;
         const hx = heli.x + heli.side * 0.7, hz = 3.5, travel = Math.max(0.3, (tgt.z - hz) / HROCKET.speed);
         shoot(hx, 5.2, hz, HROCKET, 7 * lvlHp(), (tgt.x - hx) / travel, -4.6 / travel);
       }
     }
-    if (heli.t <= 0) { heli = null; floatText('HELI LEAVING', '#bdb5a7', 22); }
   }
 
   // zombies
@@ -894,16 +908,36 @@ function update(dt) {
     z.x = clamp(z.x, -ROAD + z.r, ROAD - z.r);
     z.fl -= dt;
     if (!live) { if (z.z < -6) z.dead = true; continue; }
-    if (tank && z.z < tankZ + 1 + z.r && z.z > tankZ - 1 && Math.abs(z.x - tank.x) < 1.1 + z.r) {
+    if (z.type === 'spitter' && z.z > 6 && z.z < 85 && freezeT <= 0 && (z.spitT -= dt) <= 0) { z.spitT = rnd(3, 4.5); throwSpit(z); }
+    const tank = z.z < tankZ + 1 + z.r && z.z > tankZ - 1 ? tanks.find(tk => Math.abs(z.x - tk.x) < 1.1 + z.r) : null;
+    if (tank) {
       tank.hp -= z.bite * 2; killZombie(z, false);
       burst(tank.x + rnd(-0.8, 0.8), 1, dist + tankZ + 0.9, 3, ['#ffd23f', '#ffffff'], 3, 0.3, 0.08);
-      if (tank.hp <= 0) destroyTank(tankZ);
+      if (tank.hp <= 0) destroyTank(tank, tankZ);
     } else if (z.z < R * 0.7 + z.r && z.z > -1.5 && Math.abs(z.x - px) < R + z.r * 0.6) {
       killZombie(z, false);
       if (shieldT > 0 || Math.random() < 0.15 * pk('armor')) burst(z.x, 1, z.zAbs, 4, ['#cfe2ff', '#ffffff'], 3, 0.3, 0.08);
       else { N -= z.bite; hurt = 0.35; shake = Math.min(1, shake + 0.35); countPop = 1; sfx.bite(); }
     } else if (z.z < -6) z.dead = true;
   }
+
+  // acid spit: lobbed at the helicopter, or at the squad when there is none
+  for (const sp of spits) {
+    sp.t += dt; sp.x += sp.vx * dt; sp.y += sp.vy * dt; sp.zAbs += sp.vz * dt; sp.vy -= SPIT_G * dt;
+    if (Math.random() < 0.5) parts.push({ x: sp.x, y: sp.y, zAbs: sp.zAbs, vx: 0, vy: 0, vz: 0, life: 0.25, c: '#9bdc3a', s: 0.1 });
+    if (sp.t < sp.T) continue;
+    sp.dead = true;
+    burst(sp.x, Math.max(0.2, sp.y), sp.zAbs, 8, ['#9bdc3a', '#c6f06a', '#5d7d2a'], 3, 0.5, 0.1);
+    if (!live) continue;
+    if (sp.kind === 'heli' && heli && Math.abs(sp.x - heli.x) < 1.8) {
+      heli.hp -= sp.dmg; heli.fl = 0.12;
+      if (heli.hp <= 0) heliDown();
+    } else if (sp.kind === 'squad' && Math.abs(sp.x - px) < R + 0.3) {
+      if (shieldT > 0 || Math.random() < 0.15 * pk('armor')) continue;
+      N -= 1 + Math.floor(D() / 4); hurt = 0.3; countPop = 1; sfx.bite();
+    }
+  }
+  spits = spits.filter(sp => !sp.dead);
 
   // crates
   for (const c of crates) {
@@ -922,14 +956,17 @@ function update(dt) {
       boss.spawnT = Math.max(1, 2.6 - D() * 0.2);
       for (let i = 0; i < 4 + D() * 2; i++) zombies.push(makeZombie(Math.random() < 0.35 ? 'runner' : 'walker', clamp(boss.x + rnd(-3, 3), -4.5, 4.5), boss.zAbs - rnd(1, 3)));
     }
-    const stop = (tank ? tankZ + 1 : R) + 1.6;
+    const stop = (tanks.length ? tankZ + 1 : R) + 1.6;
     if (live && bz < stop) {
       boss.zAbs = dist + stop;
       boss.biteT -= dt;
       if (boss.biteT <= 0) {
         boss.biteT = 0.4;
         if (shieldT > 0) shake = 0.4;
-        else if (tank) { tank.hp -= 6 + 3 * D(); shake = 0.6; if (tank.hp <= 0) destroyTank(tankZ); }
+        else if (tanks.length) {
+          const tank = tanks.reduce((a, b) => Math.abs(a.x - boss.x) <= Math.abs(b.x - boss.x) ? a : b);
+          tank.hp -= 6 + 3 * D(); shake = 0.6; if (tank.hp <= 0) destroyTank(tank, tankZ);
+        }
         else { N -= Math.max(Math.round(3 + D()), Math.round(N * 0.03)); hurt = 0.4; shake = 1; countPop = 1; }
         sfx.bite();
       }
@@ -952,7 +989,7 @@ function update(dt) {
       if (g.done || g === b.gate) continue;
       const gz = g.zAbs - dist;
       if (gz >= z0 - 0.2 && gz <= z1 && (b.x < 0 ? -1 : 1) === g.side) {
-        b.gate = g; hitGate(g, b.dmg * 0.35);
+        b.gate = g; hitGate(g, b.dmg * 0.5);
         if (Math.random() < 0.15) burst(b.x, 1.2, g.zAbs, 1, ['#cfe2ff', '#ffffff'], 2, 0.25, 0.07);
       }
     }
@@ -1021,10 +1058,25 @@ function update(dt) {
   }
   if (live) updateHud();
 }
-function destroyTank(tankZ) {
+const SPIT_G = 9;
+function throwSpit(z) {
+  const T = clamp(z.z / 30, 0.9, 2.6);
+  // lead the helicopter: aim where its weave will put it when the glob lands
+  const tgt = heli ? { x: clamp(px + Math.sin((t + T) * 1.1) * 2, -4, 4) + rnd(-1, 1), y: 5.6, z: 3.5, kind: 'heli' } : { x: px, y: 0.8, z: 0, kind: 'squad' };
+  const sy = z.h * 0.8, tzAbs = dist + speed * T + tgt.z;
+  spits.push({ x: z.x, y: sy, zAbs: z.zAbs, vx: (tgt.x - z.x) / T, vz: (tzAbs - z.zAbs) / T, vy: (tgt.y - sy) / T + 0.5 * SPIT_G * T,
+    t: 0, T, kind: tgt.kind, dmg: 5 + D() * 0.8, dead: false });
+}
+function heliDown() {
+  burst(heli.x, 4, dist + 3.5, 50, ['#ffd23f', '#ff8a3a', '#2d5fb8', '#3a3632', '#55504a'], 7, 1.2, 0.18);
+  decals.push({ x: heli.x, zAbs: dist + 3.5, s: 1.3, rot: 0, a: 1, scorch: true });
+  heli = null; shake = 1; sfx.boom();
+  floatText('HELI DOWN', '#ff6b5e', 26);
+}
+function destroyTank(tank, tankZ) {
   burst(tank.x, 1, dist + tankZ, 40, ['#ffd23f', '#ff8a3a', '#2d5fb8', '#3a3632', '#55504a'], 7, 1.1, 0.18);
   decals.push({ x: tank.x, zAbs: dist + tankZ, s: 1.4, rot: 0, a: 1, scorch: true });
-  tank = null; shake = 1; sfx.boom();
+  tanks = tanks.filter(tk => tk !== tank); shake = 1; sfx.boom();
   floatText('TANK LOST', '#ff6b5e', 26);
 }
 
@@ -1217,7 +1269,7 @@ function drawBoss(b) {
   if (b.fl > 0) { ctx.globalAlpha = 0.3; ctx.drawImage(BOSS.flash[fr], p[0] - w / 2, p[1] - h, w, h); ctx.globalAlpha = 1; }
 }
 
-function drawTank() {
+function drawTank(tank) {
   const z = squadR(Math.max(1, Math.min(N, MAXVIS))) + 1.4;
   drawShadow(tank.x, z, 1.3);
   const p = proj(tank.x, 0, z - 1.1); if (!p) return;
@@ -1238,9 +1290,8 @@ function drawHeli() {
   const z = 3.5, y = 5.6 + Math.sin(t * 2) * 0.15;
   const p = proj(heli.x, y, z); if (!p) return;
   const w = 2.6 * p[2], h = w * HELI.height / HELI.width;
-  const fade = heli.t < 1.5 ? heli.t / 1.5 : 1;
-  ctx.globalAlpha = fade;
   ctx.drawImage(HELI, p[0] - w / 2, p[1] - h / 2, w, h);
+  if (heli.fl > 0) { ctx.globalAlpha = 0.5; ctx.fillStyle = '#9bdc3a'; ctx.beginPath(); ctx.ellipse(p[0], p[1], w * 0.3, h * 0.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
   const r = 1.9 * p[2], a = t * 25;
   ctx.fillStyle = 'rgba(30,32,38,.18)'; ctx.beginPath(); ctx.ellipse(p[0], p[1] - h * 0.06, r, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = 'rgba(25,27,32,.8)'; ctx.lineWidth = Math.max(2, 0.1 * p[2]);
@@ -1251,9 +1302,8 @@ function drawHeli() {
   }
   ctx.stroke();
   const bw = 1.8 * p[2], by = p[1] + h * 0.55;
-  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(p[0] - bw / 2, by, bw, 4);
-  ctx.fillStyle = '#7fb2ff'; ctx.fillRect(p[0] - bw / 2, by, bw * Math.min(1, heli.t / 18), 4);
-  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(p[0] - bw / 2, by, bw, 5);
+  ctx.fillStyle = heli.hp / heli.max > 0.35 ? '#7fb2ff' : '#d2382c'; ctx.fillRect(p[0] - bw / 2, by, bw * heli.hp / heli.max, 5);
 }
 
 function drawSoldier(i, nVis) {
@@ -1277,7 +1327,7 @@ function draw() {
   for (const g of gates) { const z = g.zAbs - dist; if (z < FAR && z > NEAR + 2) list.push([z + 0.01, 2, g]); }
   if (boss && !boss.dead) list.push([boss.zAbs - dist, 3, boss]);
   for (let i = 0; i < nVis; i++) list.push([form[i].z, 4, i]);
-  if (tank) list.push([squadR(Math.max(1, nVis)) + 1.4, 5, null]);
+  for (const tk of tanks) list.push([squadR(Math.max(1, nVis)) + 1.4, 5, tk]);
   if (heli) { const sp = proj(heli.x, 0, 3.5); if (sp) { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(sp[0], sp[1], 1.3 * sp[2], 0.5 * sp[2], 0, 0, Math.PI * 2); ctx.fill(); } }
   list.sort((a, b) => b[0] - a[0]);
   for (const [, k, o] of list) {
@@ -1286,7 +1336,7 @@ function draw() {
     else if (k === 2) drawGate(o);
     else if (k === 3) drawBoss(o);
     else if (k === 4) drawSoldier(o, nVis);
-    else drawTank();
+    else drawTank(o);
   }
 
   // tracers
@@ -1336,6 +1386,12 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
+  for (const sp of spits) {
+    const q = proj(sp.x, sp.y, sp.zAbs - dist); if (!q) continue;
+    const r = Math.max(3, 0.22 * q[2]);
+    ctx.fillStyle = '#3d5a14'; ctx.beginPath(); ctx.arc(q[0], q[1], r * 1.25, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#9bdc3a'; ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, Math.PI * 2); ctx.fill();
+  }
   if (shieldT > 0 && (shieldT > 1.5 || Math.floor(t * 8) % 2)) {
     const R = squadR(Math.max(1, nVis)) + 0.5, c = proj(px, 0.7, 0);
     if (c) {
@@ -1437,7 +1493,7 @@ function earn(n) { meta.coins += n; saveMeta(); renderShop(); return n; }
 function win() {
   state = 'won';
   $('winLvl').textContent = level; $('winKills').textContent = kills; $('winSquad').textContent = Math.floor(N);
-  $('winCoins').textContent = '+' + earn(kills + 40 * level + Math.floor(N / 5));
+  $('winCoins').textContent = '+' + earn(Math.round(kills / 4) + 20 * level + Math.floor(N / 10));
   level++;
   if (level > best) { best = level; try { localStorage.setItem('hh-best', String(best)); } catch (e) {} }
   setTimeout(() => { if (state === 'won') showOnly('ovWin'); }, 300);
@@ -1445,7 +1501,7 @@ function win() {
 function lose() {
   state = 'lost';
   $('loseLvl').textContent = level; $('loseKills').textContent = kills;
-  $('loseCoins').textContent = '+' + earn(kills);
+  $('loseCoins').textContent = '+' + earn(Math.round(kills / 4));
   $('loseDist').textContent = `${Math.min(100, Math.round(dist / L * 100))}%`;
   setTimeout(() => { if (state === 'lost') showOnly('ovLose'); }, 900);
 }
@@ -1510,7 +1566,7 @@ function boot(data) {
   requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
 }
 
-window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => choosePerk(i), perks: () => ({ ...perks }), meta: () => ({ ...meta }), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), extra: () => ({ weapon, fireLvl, tank: tank && Math.round(tank.hp), heli: heli && heli.t.toFixed(1), bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
+window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => choosePerk(i), perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: heli && Math.round(heli.hp), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
 window.claude?.hot?.snapshot?.(() => ({ level }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 })();

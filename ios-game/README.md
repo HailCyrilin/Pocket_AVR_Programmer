@@ -18,8 +18,9 @@ controls, safe-area insets, home-screen mode). It also works on desktop
 
 - **Drag** anywhere to steer. The squad fires on its own and aims at the closest zombies.
 - **Blue gates** (`+N`, `×2`) grow the squad; **red gates** (`−N`, `÷2`) shrink it.
-  Shooting a `+` gate raises it; shooting a `−` gate lowers it until it flips to `+`.
-  Most pairs have a bad side, and some have two.
+  Bullets fly through gates and change their number on the way: a `−` gate counts down
+  fast until it flips to `+`, a `+` gate counts up more slowly. Most pairs have a bad side;
+  a double-red pair never opens a level and always has one side that is quick to flip.
 - **Crates** open when shot. Each one is labelled with what it gives:
   - Weapons: **SMG** (fast, sprays), **SHOTGUN** (6-pellet blast, short range),
     **LASER** (pierces a line of zombies), **ROCKETS** (slow, splash damage),
@@ -28,10 +29,14 @@ controls, safe-area insets, home-screen mode). It also works on desktop
   - **FIRE+**: +30% fire rate for the whole squad (stacks 4 times).
   - **+N**: extra soldiers.
   - **TANK**: a tank drives in front of the squad, shells the horde and takes the bites
-    until its armour runs out. A second tank crate repairs and upgrades it.
-  - **HELI**: a helicopter flies cover for 18 seconds, firing rockets.
+    until its armour runs out. Up to 1 tank on levels 1–5, 2 on levels 6–10 and 3 from
+    level 11; extra tank crates repair and upgrade the weakest one.
+  - **HELI**: a helicopter flies cover and fires rockets until it is shot down.
+    More heli crates repair and upgrade it.
   - **SHIELD**: no bites for 6 seconds. **FREEZE**: all zombies nearly stop for 4 seconds.
   - **COINS**: coins for upgrades. **NUKE** (rare): kills every zombie in view and hurts the boss.
+- **Spitters** (green, from level 5) lob acid at the helicopter, or at the squad if there
+  is none. Kill them early to keep air support alive.
 - Rounds fly all the way to the horizon, so far crates and hordes can be shot early.
 - **Red barrels** sit inside the hordes; shoot one to blow up everything around it.
   **Troop crates** (`+N`) add soldiers.
