@@ -27,6 +27,15 @@ controls, safe-area insets, home-screen mode). It also works on desktop
   - **TANK**: a tank drives in front of the squad, shells the horde and takes the bites
     until its armour runs out. A second tank crate repairs and upgrades it.
   - **HELI**: a helicopter flies cover for 18 seconds, firing rockets.
+- **Red barrels** sit inside the hordes; shoot one to blow up everything around it.
+  **Troop crates** (`+N`) add soldiers.
+- **Supply drops** pause the road twice per level: pick one of three perk cards
+  (common, rare, epic), such as Multishot, Ricochet, Volatile (zombies explode),
+  Frost rounds, Headshots, Body armour, Recruiter, or calling in a tank or helicopter.
+  Perks last until the level ends.
+- **Coins** come from kills and cleared levels. Spend them on the win or lose screen on
+  permanent upgrades: Bigger squad, Firepower and Salvage (weaker crate armour).
+  Progress is saved in the browser.
 - Each level ends with a boss that drops onto the road, calls in more zombies and
   charges the squad. Its health scales with your firepower, so it always reaches you.
 - Levels get longer, hordes bigger, zombies tougher and brutes more common.
