@@ -1,7 +1,7 @@
 # Horde Arcade
 
-Three games in one page: **Horde Highway**, **Box Breaker** and **Zombie Miner**. Opening the
-page shows a game picker; each game has a button to go back to it.
+Four games in one page: **Horde Highway**, **Box Breaker**, **Zombie Miner** and **Cannon
+Rush**. Opening the page shows a game picker; each game has a button to go back to it.
 
 ## Horde Highway
 
@@ -33,6 +33,23 @@ Drag to move; your squad shoots the lane it stands in. Each box down a lane is t
 the last: split your time between growing the army and shooting the horde before it
 arrives, then finish its chief. Each level brings a bigger army.
 Progress saves like Horde Highway's, and the title screen has the same **Start at level** picker.
+
+## Cannon Rush
+
+Drag left and right to aim a cannon that fires on its own at one of three targets:
+
+- **Left lane:** shots pass through a purple **×N gate** and become N blue soldiers each.
+  The soldiers charge the red horde marching down the lane and trade one for one.
+- **Right lane:** a stack of purple **+10 bars**. Each bar takes a few hits, and breaking
+  it adds its value to the gate.
+- **The pedestal:** shoot its counter down to 0 to unlock a second cannon. It lobs extra
+  soldiers over the gate.
+
+The horde marches from the start, and you lose if it reaches the gate. The trick is
+deciding how long to build up the gate before pouring soldiers through it. Bars are worth
+more each level and the horde grows to match: from about 55% of the most a perfect player
+can beat at level 1 to about 75% by level 30. Progress saves like the other games, with a
+**Start at level** picker.
 
 ## Zombie Miner
 

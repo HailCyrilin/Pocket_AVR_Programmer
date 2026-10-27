@@ -31,7 +31,7 @@ body{
 #game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--night)}
 .night-fx{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 65%,rgba(10,8,30,0) 35%,rgba(10,8,30,.55) 100%)}
 
-#hud,#lrHud,#zmHud{
+#hud,#lrHud,#zmHud,#crHud{
   position:fixed;inset:0 0 auto;pointer-events:none;display:grid;gap:8px;
   padding-top:calc(env(safe-area-inset-top,0px) + 10px);
   padding-left:max(16px,env(safe-area-inset-left,0px));
@@ -124,7 +124,8 @@ body{
   display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;cursor:pointer;
   padding:14px;border-radius:12px;border:2px solid var(--g);background:rgba(255,255,255,.05);color:var(--ink);font-family:var(--body);
 }
-.game-pick.hh{--g:var(--squad)}.game-pick.lr{--g:var(--hazard)}.game-pick.zm{--g:#6bf07a}
+.game-pick.hh{--g:var(--squad)}.game-pick.lr{--g:var(--hazard)}.game-pick.zm{--g:#6bf07a}.game-pick.cr{--g:#c56bff}
+.tag.purple{background:#9b3fe0}
 .game-pick:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
 .game-pick:active{background:rgba(255,255,255,.12)}
 .game-pick b{font:400 22px/1.05 var(--display)}
@@ -363,6 +364,47 @@ body{
   </div>
 </div>
 
+<canvas id="crCanvas" class="lr-canvas" hidden aria-label="Cannon Rush game" style="background:#16233a"></canvas>
+<div id="crHud" hidden>
+  <div class="hud-row">
+    <div class="chip">LV <span id="crLevel">1</span></div>
+    <div class="chip"><span id="crMult">×10</span><small>gate</small></div>
+    <div class="chip"><span id="crFoe">0</span><small>enemy</small></div>
+  </div>
+</div>
+<div id="crTitle" class="ov" hidden>
+  <div class="card">
+    <p class="eyebrow">Aim the cannon · hold the bridge</p>
+    <h1>Cannon <span style="color:#c56bff">Rush</span></h1>
+    <ul class="rules">
+      <li><span class="tag purple">×10</span>Shots into the left lane pass the gate and become that many soldiers.</li>
+      <li><span class="tag purple">+10</span>Shots into the right lane break bars that raise the gate's multiplier.</li>
+      <li><span class="tag gold">200</span>Shoot the pedestal's counter to 0 for a second cannon.</li>
+      <li><span class="tag red">ARMY</span>The red horde marches from the start: if it reaches the gate, you lose.</li>
+    </ul>
+    <p>Drag left and right to aim. The cannon fires on its own.</p>
+    <button id="crPlay" class="btn" type="button">Play</button>
+    <div class="start-row" id="crStartRow" hidden>
+      <label for="crLvlPick">Start at level</label>
+      <select id="crLvlPick"></select>
+    </div>
+    <button id="crGames" class="btn ghost" type="button">All games</button>
+  </div>
+</div>
+<div id="crEnd" class="ov" hidden>
+  <div class="card">
+    <p class="eyebrow" id="crEndEyebrow">Level 1</p>
+    <h2 id="crEndTitle">Horde crushed</h2>
+    <p id="crEndText"></p>
+    <div class="stats">
+      <div><b id="crEndKills">0</b><span>Kills</span></div>
+      <div><b id="crEndMult">×10</b><span>Gate</span></div>
+    </div>
+    <button id="crNext" class="btn" type="button">Next level</button>
+    <button id="crMenu" class="btn ghost" type="button">Menu</button>
+  </div>
+</div>
+
 <div id="hub" class="ov">
   <div class="card hub">
     <p class="eyebrow">Choose a game</p>
@@ -375,6 +417,9 @@ body{
     </button>
     <button class="game-pick zm" type="button" data-game="zm">
       <b>Zombie Miner</b><span>Merge zombie miners into stronger ones and dig deeper through the crystal mine.</span><em id="hubZM">New</em>
+    </button>
+    <button class="game-pick cr" type="button" data-game="cr">
+      <b>Cannon Rush</b><span>Aim one cannon at three targets: the soldier gate, the +10 bars and a bonus cannon.</span><em id="hubCR">New</em>
     </button>
   </div>
 </div>
@@ -3636,6 +3681,314 @@ window.__zm = {
 })();
 </script>
 <script>
+/* =====================================================================
+   Cannon Rush: slide the cannon between three targets. Shots into the left
+   lane pass the ×M gate and become M soldiers that charge the red horde;
+   shots into the right lane break +10 bars that raise the multiplier;
+   shots at the pedestal count it down to unlock a second cannon.
+   ===================================================================== */
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const cvs = $('crCanvas'), ctx = cvs.getContext('2d');
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const hash = i => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+function fmt(n) { n = Math.floor(n); return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : String(n); }
+
+/* ---------- world (x across, z up the lanes) ---------- */
+const LANE_L = [-4.6, -0.5], LANE_R = [0.5, 3.4], PED_X = 4.5, GATE_Z = 3, CANNON_Z = -3.2, FAR_Z = 70;
+const FIRE_RATE = 8, SHOT_SPEED = 30, SQUAD_SPEED = 7;
+
+let W = 0, H = 0, DPR = 1, HOR = 0, A = 0, B = 0;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cvs.clientWidth; H = cvs.clientHeight; if (!W || !H) return;
+  cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
+  HOR = H * 0.07;
+  A = (H * 0.86 - HOR) * (CANNON_Z + CAM);
+  B = Math.min(W / 10.5, H / 15) * (CANNON_Z + CAM);
+}
+window.addEventListener('resize', resize);
+// perspective: returns [screen x, screen y, scale in px per world unit]
+const CAM = 20;   // camera distance behind the courtyard
+function proj(x, z) { const d = Math.max(0.5, z + CAM); return [W / 2 + x * B / d, HOR + A / d, B / d]; }
+
+/* ---------- state ---------- */
+let level = 1, maxLevel = 1, state = 'menu';
+let R = 0, R0 = 0, zr = 0, speed = 0, M = 0, bars = [], ped = null, cannon2 = false;
+let cx = -2.5, fireT = 0, fire2T = 0, shots = [], squads = [], balls = [], parts = [], texts = [], kills = 0, t = 0, sqId = 0;
+
+function setup() {
+  const L = level;
+  // horde size: a share of the biggest horde a near-perfect player can beat (measured with a bot),
+  // 55% at level 1 rising to 80% by level 30
+  const cap = L <= 10 ? 46000 * Math.pow(1.084, L - 1) : 95500 * Math.pow(1.14, L - 10);
+  R0 = R = Math.round(cap * (0.55 + 0.25 * Math.min(1, (L - 1) / 29)));
+  zr = 36 + Math.min(L, 20) * 0.6;
+  speed = 0.7 + 0.01 * Math.min(L, 20);
+  M = 10;
+  bars = [];
+  const nb = 8 + Math.min(L, 10);
+  for (let i = 0; i < nb; i++) { const hp = Math.round((3 + i * 1.4) * (1 + 0.05 * (L - 1))); bars.push({ z: 6 + i * 2.4, hp, max: hp, v: Math.round(10 * Math.pow(1.16, L - 1)), fl: 0 }); }
+  ped = { need: Math.round(Math.min(200, 40 + 10 * (L - 1))), fl: 0 };
+  cannon2 = false; cx = -2.5; fireT = fire2T = 0; shots = []; squads = []; balls = []; parts = []; texts = []; kills = 0;
+}
+
+/* ---------- update ---------- */
+function burst(x, z, col, n) { for (let i = 0; i < n; i++) parts.push({ x, z, y: 0.3, vx: rnd(-3, 3), vz: rnd(-3, 3), vy: rnd(2, 6), life: rnd(0.3, 0.7), c: col }); }
+function addSquad(x, z, n) { squads.push({ x: clamp(x, LANE_L[0] + 0.5, LANE_L[1] - 0.5), z, n, id: sqId++ }); }
+function update(dt) {
+  t += dt;
+  if (state !== 'play') return;
+  // main cannon
+  fireT += dt;
+  while (fireT >= 1 / FIRE_RATE) { fireT -= 1 / FIRE_RATE; shots.push({ x: cx + rnd(-0.12, 0.12), z: CANNON_Z + 0.8 }); }
+  // second cannon lobs boulders over the gate into the lane
+  if (cannon2) {
+    fire2T += dt;
+    while (fire2T >= 0.18) { fire2T -= 0.18; balls.push({ x0: PED_X, x1: rnd(LANE_L[0] + 0.6, LANE_L[1] - 0.6), t: 0 }); }
+  }
+  for (const b of balls) {
+    b.t += dt / 0.6;
+    if (b.t >= 1) { b.done = true; addSquad(b.x1, GATE_Z + 0.3, M); burst(b.x1, GATE_Z + 0.3, '#7ec1ff', 4); }
+  }
+  balls = balls.filter(b => !b.done);
+  for (const s of shots) {
+    const z0 = s.z; s.z += SHOT_SPEED * dt;
+    if (s.x >= LANE_L[0] && s.x <= LANE_L[1]) {
+      if (z0 < GATE_Z && s.z >= GATE_Z) { s.done = true; addSquad(s.x, GATE_Z + 0.2, M); }
+    } else if (s.x >= LANE_R[0] && s.x <= LANE_R[1]) {
+      const bar = bars.find(b => b.hp > 0);
+      if (bar && s.z >= bar.z) {
+        s.done = true; bar.hp--; bar.fl = 0.08;
+        if (bar.hp <= 0) { M += bar.v; burst((LANE_R[0] + LANE_R[1]) / 2, bar.z, '#c56bff', 18); texts.push({ x: (LANE_R[0] + LANE_R[1]) / 2, z: bar.z, txt: `+${bar.v}`, col: '#e3b5ff', t: 0 }); texts.push({ x: (LANE_L[0] + LANE_L[1]) / 2, z: GATE_Z, txt: `×${M}`, col: '#e3b5ff', t: 0 }); }
+      }
+    } else if (s.x > LANE_R[1] + 0.3 && ped && !cannon2) {
+      if (s.z >= 0.6) {
+        s.done = true; ped.need--; ped.fl = 0.08;
+        if (ped.need <= 0) { cannon2 = true; burst(PED_X, 1, '#ffd23f', 24); texts.push({ x: PED_X, z: 1.5, txt: 'CANNON!', col: '#ffd23f', t: 0 }); }
+      }
+    } else if (s.z >= GATE_Z) s.done = true;   // hits a wall
+    if (s.z > FAR_Z) s.done = true;
+  }
+  shots = shots.filter(s => !s.done);
+  // the horde marches; each squad that reaches it trades one for one
+  zr -= speed * dt;
+  for (const q of squads) {
+    q.z += SQUAD_SPEED * dt;
+    if (q.z >= zr && R > 0) {
+      const k = Math.min(q.n, R); R -= k; q.n -= k; kills += k;
+      if (k > 0 && Math.random() < 0.6) burst(q.x, zr, '#ff5a4a', 3);
+      if (q.n <= 0) q.done = true;
+    }
+    if (q.z > FAR_Z) q.done = true;
+  }
+  squads = squads.filter(q => !q.done);
+  if (R <= 0) end(true);
+  else if (zr <= GATE_Z + 0.4) end(false);
+  for (const b of bars) b.fl -= dt;
+  if (ped) ped.fl -= dt;
+  for (const p of parts) { p.vy -= 18 * dt; p.x += p.vx * dt; p.z += p.vz * dt; p.y = Math.max(0, p.y + p.vy * dt); p.life -= dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const tx of texts) tx.t += dt;
+  texts = texts.filter(tx => tx.t < 1.1);
+}
+
+/* ---------- draw ---------- */
+function quad(x0, x1, z0, z1, col) {
+  const a = proj(x0, z0), b = proj(x1, z0), c = proj(x1, z1), d = proj(x0, z1);
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.fill();
+}
+// an upright panel facing the camera, from x0 to x1 at depth z, h world units tall
+function panel(x0, x1, z, h, col) {
+  const a = proj(x0, z), b = proj(x1, z);
+  ctx.fillStyle = col; ctx.fillRect(a[0], a[1] - h * a[2], b[0] - a[0], h * a[2]);
+  return [a, b];
+}
+function label(txt, x, y, size, fill) {
+  ctx.font = `${size}px Bungee, Impact, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(2, size * 0.16); ctx.strokeStyle = 'rgba(20,10,40,.85)'; ctx.fillStyle = fill;
+  ctx.strokeText(txt, x, y); ctx.fillText(txt, x, y);
+}
+function person(x, z, col, dark) {
+  const [sx, sy, k] = proj(x, z), r = Math.max(1.2, k * 0.17);
+  ctx.fillStyle = dark; ctx.fillRect(sx - r, sy - r * 2.6, r * 2, r * 2.4);
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy - r * 3, r * 0.95, 0, Math.PI * 2); ctx.fill();
+}
+function drawCannon(x, z, col, dark, scale) {
+  const [sx, sy, k0] = proj(x, z), k = k0 * scale;
+  ctx.fillStyle = '#a8743a';
+  for (const o of [-0.45, 0, 0.45]) { ctx.beginPath(); ctx.arc(sx + o * k, sy - k * 0.18, k * 0.2, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = dark; ctx.fillRect(sx - k * 0.55, sy - k * 0.6, k * 1.1, k * 0.38);
+  ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(sx, sy - k * 0.9, k * 0.38, k * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = dark; ctx.beginPath(); ctx.ellipse(sx, sy - k * 1.32, k * 0.26, k * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(sx - k * 0.22, sy - k * 1.2, k * 0.1, k * 0.5);
+}
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#16233a'; ctx.fillRect(0, 0, W, H);
+  // water shimmer
+  ctx.fillStyle = 'rgba(255,255,255,.04)';
+  for (let i = 0; i < 30; i++) { const y = HOR + (i / 30) * (H - HOR), x = ((i * 97 + t * 12) % (W + 80)) - 40; ctx.fillRect(x, y, 30 + (i % 4) * 14, 2); }
+  // courtyard and lane floors with walls
+  quad(-7, 7, -9, GATE_Z - 0.2, '#d9dde3');
+  quad(LANE_L[0] - 0.35, LANE_L[1] + 0.35, GATE_Z - 0.2, FAR_Z, '#8d939c');
+  quad(LANE_L[0], LANE_L[1], GATE_Z - 0.2, FAR_Z, '#c9ccd2');
+  quad(LANE_R[0] - 0.35, LANE_R[1] + 0.35, GATE_Z - 0.2, FAR_Z, '#8d939c');
+  quad(LANE_R[0], LANE_R[1], GATE_Z - 0.2, FAR_Z, '#c9ccd2');
+  // aim guide
+  const ag = proj(cx, CANNON_Z + 1), af = proj(cx, cx > LANE_R[1] + 0.3 ? 1 : GATE_Z);
+  ctx.strokeStyle = 'rgba(47,126,240,.35)'; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
+  ctx.beginPath(); ctx.moveTo(ag[0], ag[1]); ctx.lineTo(af[0], af[1]); ctx.stroke(); ctx.setLineDash([]);
+  // the red horde, far to near
+  if (R > 0) {
+    const len = Math.min(44, 6 + R / 160), N = Math.min(1300, Math.ceil(R / 4));
+    for (let i = N - 1; i >= 0; i--) {
+      const z = zr + (i / N) * len; if (z > FAR_Z) continue;
+      const x = LANE_L[0] + 0.25 + hash(i) * (LANE_L[1] - LANE_L[0] - 0.5);
+      person(x, z + hash(i + 999) * 0.4, '#ff6a5a', '#c4302b');
+    }
+    const [fx, fy, fk] = proj((LANE_L[0] + LANE_L[1]) / 2, zr);
+    label(fmt(R), fx, fy - fk * 1.2, Math.max(14, fk * 0.7), '#ffb0a8');
+  }
+  // +10 bars, far to near
+  for (let i = bars.length - 1; i >= 0; i--) {
+    const b = bars[i]; if (b.hp <= 0) continue;
+    const [a, c] = panel(LANE_R[0], LANE_R[1], b.z, 0.9, b.fl > 0 ? '#f0d0ff' : '#9b3fe0');
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(a[0], a[1] - 0.9 * a[2], c[0] - a[0], 0.2 * a[2]);
+    label(`+${b.v}`, (a[0] + c[0]) / 2, a[1] - 0.45 * a[2], Math.max(10, a[2] * 0.55), '#fff');
+    if (b.hp < b.max) { ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(a[0], a[1] - 0.08 * a[2], (c[0] - a[0]), 0.08 * a[2]); ctx.fillStyle = '#fff'; ctx.fillRect(a[0], a[1] - 0.08 * a[2], (c[0] - a[0]) * b.hp / b.max, 0.08 * a[2]); }
+  }
+  // wooden fence closing the right lane off from the yard
+  panel(LANE_R[0] - 0.35, LANE_R[1] + 0.35, GATE_Z - 0.1, 0.5, '#a8743a');
+  // blue squads
+  for (const q of squads) {
+    const c = Math.round(clamp(Math.sqrt(q.n) * 0.9, 2, 14));
+    for (let j = 0; j < c; j++) person(q.x + (hash(q.id * 31 + j) - 0.5) * 1.6, q.z + (hash(q.id * 17 + j) - 0.5) * 1.2, '#7ec1ff', '#2f6fd0');
+  }
+  // the ×M gate
+  {
+    const [a, c] = panel(LANE_L[0], LANE_L[1], GATE_Z, 1.1, 'rgba(155,63,224,.85)');
+    ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(a[0], a[1] - 1.1 * a[2], c[0] - a[0], 0.18 * a[2]);
+    label(`×${M}`, (a[0] + c[0]) / 2, a[1] - 0.55 * a[2], Math.max(16, a[2] * 0.75), '#fff');
+  }
+  // pedestal with the locked (brown) or working (blue) cannon
+  if (ped) {
+    quad(PED_X - 0.9, PED_X + 0.9, -0.2, 1.6, '#b9bec6');
+    const [a, c] = panel(PED_X - 0.9, PED_X + 0.9, -0.2, 0.7, ped.fl > 0 ? '#fff' : '#9aa0a8');
+    if (!cannon2) label(String(ped.need), (a[0] + c[0]) / 2, a[1] - 0.35 * a[2], Math.max(13, a[2] * 0.45), '#fff');
+    drawCannon(PED_X, 0.7, cannon2 ? '#4f9cff' : '#b08a63', cannon2 ? '#2f6fd0' : '#8a6a48', 1.5);
+  }
+  // shots and boulders
+  ctx.fillStyle = '#9fd0ff';
+  for (const s of shots) { const [sx, sy, k] = proj(s.x, s.z); ctx.beginPath(); ctx.arc(sx, sy - k * 0.5, Math.max(1.5, k * 0.13), 0, Math.PI * 2); ctx.fill(); }
+  for (const b of balls) {
+    const x = b.x0 + (b.x1 - b.x0) * b.t, z = 1 + (GATE_Z + 0.3 - 1) * b.t, y = 0.6 + Math.sin(b.t * Math.PI) * 3;
+    const [sx, sy, k] = proj(x, z); ctx.fillStyle = '#5aa8ff'; ctx.beginPath(); ctx.arc(sx, sy - y * k, Math.max(2, k * 0.2), 0, Math.PI * 2); ctx.fill();
+  }
+  for (const p of parts) { const [sx, sy, k] = proj(p.x, p.z); ctx.globalAlpha = Math.min(1, p.life * 3); ctx.fillStyle = p.c; const s = Math.max(2, k * 0.12); ctx.fillRect(sx - s / 2, sy - p.y * k - s / 2, s, s); }
+  ctx.globalAlpha = 1;
+  // player cannon
+  drawCannon(cx, CANNON_Z, '#4f9cff', '#2f6fd0', 1);
+  for (const tx of texts) {
+    const [sx, sy, k] = proj(tx.x, tx.z);
+    ctx.globalAlpha = Math.max(0, 1 - tx.t / 1.1);
+    label(tx.txt, sx, sy - k * 1.5 - tx.t * 40, Math.max(16, k * 0.6), tx.col);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- input ---------- */
+let dragX = null, dragCx = 0;
+cvs.addEventListener('pointerdown', e => { if (state !== 'play') return; dragX = e.clientX; dragCx = cx; try { cvs.setPointerCapture(e.pointerId); } catch (err) {} });
+cvs.addEventListener('pointermove', e => {
+  if (dragX === null) return;
+  const [, , k] = proj(0, CANNON_Z);
+  cx = clamp(dragCx + (e.clientX - dragX) / k * 1.15, LANE_L[0] + 0.2, PED_X + 0.3);
+});
+const stopDrag = () => { dragX = null; };
+cvs.addEventListener('pointerup', stopDrag); cvs.addEventListener('pointercancel', stopDrag);
+window.addEventListener('keydown', e => {
+  if (window.activeGame !== 'cr' || state !== 'play') return;
+  if (e.key === 'ArrowLeft') cx = clamp(cx - 0.5, LANE_L[0] + 0.2, PED_X + 0.3);
+  if (e.key === 'ArrowRight') cx = clamp(cx + 0.5, LANE_L[0] + 0.2, PED_X + 0.3);
+});
+
+/* ---------- screens, HUD, saving ---------- */
+function showScreen(id) { for (const o of ['crTitle', 'crEnd']) $(o).hidden = o !== id; }
+let hudT = 0;
+function updateHud() { $('crLevel').textContent = level; $('crFoe').textContent = fmt(R); $('crMult').textContent = '×' + M; }
+function end(won) {
+  if (state !== 'play') return;
+  state = 'end';
+  $('crEndEyebrow').textContent = `Level ${level}`;
+  $('crEndTitle').textContent = won ? 'Horde crushed' : 'Overrun';
+  $('crEndText').textContent = won ? 'Your soldiers wiped out the red horde.' : 'Break the +10 bars early to grow the gate, then pour soldiers through it.';
+  $('crEndKills').textContent = fmt(kills); $('crEndMult').textContent = '×' + M;
+  $('crNext').textContent = won ? 'Next level' : 'Try again';
+  if (won) { level++; maxLevel = Math.max(maxLevel, level); }
+  save();
+  setTimeout(() => { if (state === 'end') showScreen('crEnd'); }, 700);
+}
+let saveRef = null, localAt = 0;
+function save() {
+  const d = { level, maxLevel, savedAt: Date.now() };
+  try { localStorage.setItem('cr-save', JSON.stringify(d)); localAt = d.savedAt; } catch (e) {}
+  if (saveRef) saveRef.set(d).catch(() => {});
+  label2();
+}
+function applySave(d) { if (!d || typeof d.level !== 'number') return false; level = d.level; maxLevel = Math.max(d.maxLevel || 1, level); localAt = d.savedAt || 0; return true; }
+try { applySave(JSON.parse(localStorage.getItem('cr-save') || 'null')); } catch (e) {}
+(async () => {
+  const c = window.claude; if (!c || !c.use) return;
+  try {
+    const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
+    const id = user ? await user.id() : null; if (!db || !id) return;
+    const ref = db.doc(`data/users/${id}/cannonrush`), snap = await ref.get(), remote = snap.exists ? snap.data() : null;
+    if (remote && remote.savedAt > localAt) { applySave(remote); if (state === 'menu') { setup(); refreshTitle(); } label2(); }
+    else if (!remote || localAt > remote.savedAt) await ref.set({ level, maxLevel, savedAt: localAt || Date.now() });
+    saveRef = ref;
+  } catch (e) {}
+})();
+function label2() { const el = $('hubCR'); if (el) el.textContent = level > 1 ? `Level ${level}` : 'New'; }
+function refreshTitle() {
+  $('crPlay').textContent = level > 1 ? `Play level ${level}` : 'Play';
+  const sel = $('crLvlPick');
+  sel.innerHTML = '';
+  for (let i = 1; i <= maxLevel; i++) { const o = document.createElement('option'); o.value = i; o.textContent = `Level ${i}`; if (i === level) o.selected = true; sel.appendChild(o); }
+  $('crStartRow').hidden = maxLevel < 2;
+}
+$('crLvlPick').addEventListener('change', e => { level = +e.target.value; save(); setup(); refreshTitle(); });
+function play() { setup(); state = 'play'; showScreen(null); $('crHud').hidden = false; updateHud(); }
+$('crPlay').addEventListener('click', play);
+$('crNext').addEventListener('click', play);
+$('crMenu').addEventListener('click', () => { state = 'menu'; setup(); $('crHud').hidden = true; refreshTitle(); showScreen('crTitle'); });
+$('crGames').addEventListener('click', () => window.showHub && window.showHub());
+
+/* ---------- loop & entry ---------- */
+let lastTs = 0;
+function frame(ts) {
+  const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000)); lastTs = ts;
+  if (window.activeGame === 'cr' && !document.hidden && W) {
+    update(dt); draw();
+    if (state === 'play' && (hudT -= dt) <= 0) { hudT = 0.15; updateHud(); }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
+function enter() { cvs.hidden = false; resize(); state = 'menu'; setup(); $('crHud').hidden = true; refreshTitle(); showScreen('crTitle'); }
+function leave() { state = 'menu'; cvs.hidden = true; $('crHud').hidden = true; showScreen(null); }
+setup(); label2();
+window.cr = { enter, leave };
+window.__cr = {
+  update, play, scaleR: k => { R0 = R = Math.round(R0 * k); }, steer: x => { cx = x; }, setLevel: L => { level = L; setup(); },
+  get: () => ({ state, level, R, R0, zr, M, cx, cannon2, ped: ped && ped.need, bars: bars.filter(b => b.hp > 0).length, kills }),
+  lanes: { L: LANE_L, R: LANE_R, PED_X },
+};
+})();
+</script>
+<script>
 /* ---------- game picker ---------- */
 (() => {
   const $ = id => document.getElementById(id);
@@ -3648,6 +4001,7 @@ window.__zm = {
     window.activeGame = 'hub';
     if (window.lr) window.lr.leave();
     if (window.zm) { window.zm.leave(); window.zm.label(); }
+    if (window.cr) window.cr.leave();
     if (window.hh) window.hh.leave();
     refreshHub();
     $('hub').hidden = false;
@@ -3656,7 +4010,7 @@ window.__zm = {
     const g = b.dataset.game;
     $('hub').hidden = true;
     window.activeGame = g;
-    if (g === 'hh') window.hh.enter(); else if (g === 'zm') window.zm.enter(); else window.lr.enter();
+    if (g === 'hh') window.hh.enter(); else if (g === 'zm') window.zm.enter(); else if (g === 'cr') window.cr.enter(); else window.lr.enter();
   });
   refreshHub();
 })();
