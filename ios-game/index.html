@@ -148,6 +148,22 @@ body{
 .perk .rar{grid-row:span 2;font:400 11px/1 var(--display);color:var(--night);background:var(--r);padding:6px 6px;border-radius:5px;writing-mode:vertical-rl;transform:rotate(180deg)}
 .perk b{font:400 19px/1.1 var(--display)}
 .perk span{font-size:17px;line-height:1.2;color:var(--muted)}
+.guns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gun{
+  display:grid;gap:6px;align-content:start;padding:12px;border-radius:10px;cursor:pointer;text-align:left;
+  border:2px solid var(--g);background:rgba(255,255,255,.04);color:var(--ink);font-family:var(--body);min-width:0;
+}
+.gun.cur{--g:var(--common)}.gun.new{--g:var(--hazard)}
+.gun:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
+.gun:active{background:rgba(255,255,255,.1)}
+.gun i{font:400 11px/1 var(--display);font-style:normal;color:var(--night);background:var(--g);padding:4px 6px;border-radius:4px;justify-self:start}
+.gun b{font:400 20px/1 var(--display)}
+.gun p{margin:0;font-size:15px;line-height:1.2;color:var(--muted)}
+.stat{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pips{display:flex;gap:3px}
+.pips span{width:9px;height:9px;border-radius:2px;background:rgba(255,255,255,.14)}
+.pips span.on{background:var(--g)}
+.gun em{font:400 14px/1 var(--display);font-style:normal;color:var(--g);margin-top:2px}
 .perk.common{--r:var(--common)}.perk.rare{--r:var(--rare)}.perk.epic{--r:var(--epic)}
 .shop{display:grid;gap:8px;padding-top:4px;border-top:1px solid rgba(255,255,255,.12)}
 .shop-head{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -228,6 +244,14 @@ body{
 </div>
 
 <div id="banner" class="banner" hidden aria-live="polite"><b id="bnTheme"></b><span id="bnTwist"></span><small id="bnDesc" hidden></small></div>
+
+<div id="ovGun" class="ov" hidden>
+  <div class="card">
+    <p class="eyebrow">Weapon crate</p>
+    <h2>Keep or swap?</h2>
+    <div id="gunCards" class="guns"></div>
+  </div>
+</div>
 
 <div id="ovPick" class="ov" hidden>
   <div class="card">
@@ -524,6 +548,18 @@ const WEAPONS = {
   railgun: { name: 'RAILGUN',  rate: 0.45, dmg: 5,    pellets: 1, spread: 0,   aim: 1,   speed: 150, range: 210, pierce: 40, splash: 0, col: '#c08bff', len: 8 },
   tesla:   { name: 'TESLA',    rate: 1.6,  dmg: 1.3,  pellets: 1, spread: 0.2, aim: 1,   speed: 70,  range: 210, pierce: 0,  splash: 0, col: '#b8a6ff', len: 2, chain: 3 },
 };
+// what the weapon cards show: 1-5 pips per stat, and a one-line summary
+const GUN_STATS = {
+  rifle:   { dmg: 2, range: 5, crowd: 1, note: 'Accurate all-rounder' },
+  smg:     { dmg: 3, range: 4, crowd: 1, note: 'Fast spray of light rounds' },
+  shotgun: { dmg: 4, range: 2, crowd: 2, note: '6-pellet blast, short range' },
+  laser:   { dmg: 2, range: 5, crowd: 4, note: 'Beams pierce 5 zombies' },
+  rocket:  { dmg: 2, range: 5, crowd: 4, note: 'Slow, explodes on impact' },
+  minigun: { dmg: 3, range: 5, crowd: 1, note: 'Very fast stream of rounds' },
+  flamer:  { dmg: 5, range: 1, crowd: 3, note: 'Short range, sets zombies on fire' },
+  railgun: { dmg: 3, range: 5, crowd: 5, note: 'Slow, pierces everything in line' },
+  tesla:   { dmg: 2, range: 5, crowd: 4, note: 'Lightning jumps to 3 more zombies' },
+};
 const GUNS = ['smg', 'shotgun', 'laser', 'rocket', 'minigun', 'flamer', 'railgun', 'tesla'];
 const CRATE_LABEL = { fire: 'FIRE+', tank: 'TANK', heli: 'HELI', shield: 'SHIELD', coins: 'COINS', freeze: 'FREEZE', nuke: 'NUKE' };
 const LOOT = [['weapon', 30], ['fire', 10], ['troops', 15], ['tank', 11], ['heli', 9], ['shield', 7], ['coins', 8], ['freeze', 5], ['nuke', 3]];
@@ -651,6 +687,7 @@ const ms = id => mission && mission.id === id;
 const progress = () => ms('hold') ? holdT / HOLD_TIME * L : dist;
 
 function startLevel() {
+  pickQueue.length = 0; pickKind = 'perk';
   TH = THEMES[(level - 1) % THEMES.length];
   $('nightFx').hidden = !TH.night;
   mission = level % 3 === 0 ? MISSIONS[(level / 3 - 1) % MISSIONS.length] : null;
@@ -805,7 +842,7 @@ function openCrate(c) {
   }
   burst(c.x, 0.7, c.zAbs, 18, ['#a8743a', '#6e4a22', '#f2c230'], 5, 0.9, 0.14);
   sfx.crate();
-  if (c.kind === 'weapon') { weapon = c.gun; floatText(WEAPONS[c.gun].name + '!', '#f2c230', 28); }
+  if (c.kind === 'weapon') { if (c.gun === weapon) floatText('SAME GUN', '#bdb5a7', 22); else askPick(() => openGunChoice(c.gun)); }
   else if (c.kind === 'fire') { fireLvl = Math.min(5, fireLvl + 1); floatText(fireLvl >= 5 ? 'MAX FIRE RATE' : 'FIRE RATE UP', '#f2c230', 24); }
   else if (c.kind === 'tank') {
     const max = 70 + 30 * level;
@@ -856,9 +893,48 @@ function rollPerks() {
   }
   return out;
 }
+// only one choice screen at a time; a second one waits until the first is answered
+const pickQueue = [];
+let pickKind = 'perk', gunOffer = null;
+function askPick(open) {
+  if (state === 'pick') pickQueue.push(open);
+  else open();
+}
+function resumeAfterPick() {
+  state = 'play'; showOnly(null);
+  if (pickQueue.length) pickQueue.shift()();
+}
+function gunCard(id, tag, cls) {
+  const w = WEAPONS[id], st = GUN_STATS[id];
+  const pips = n => `<span class="pips">${[1, 2, 3, 4, 5].map(i => `<span class="${i <= n ? 'on' : ''}"></span>`).join('')}</span>`;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = `gun ${cls}`;
+  b.innerHTML = `<i>${tag}</i><b>${w.name}</b>
+    <div class="stat">Damage ${pips(st.dmg)}</div>
+    <div class="stat">Range ${pips(st.range)}</div>
+    <div class="stat">Crowd ${pips(st.crowd)}</div>
+    <p>${st.note}</p><em>${cls === 'cur' ? 'Keep' : 'Take'}</em>`;
+  return b;
+}
+function openGunChoice(gun) {
+  state = 'pick'; pickKind = 'gun'; dragId = null; gunOffer = gun;
+  const box = $('gunCards'); box.textContent = '';
+  const keep = gunCard(weapon, 'Current', 'cur'), take = gunCard(gun, 'New', 'new');
+  keep.addEventListener('click', () => chooseGun(0));
+  take.addEventListener('click', () => chooseGun(1));
+  box.append(keep, take);
+  sfx.crate();
+  showOnly('ovGun');
+}
+function chooseGun(i) {
+  if (state !== 'pick' || pickKind !== 'gun') return;
+  if (i === 1) { weapon = gunOffer; floatText(WEAPONS[weapon].name + '!', '#f2c230', 28); }
+  else floatText(`KEPT ${WEAPONS[weapon].name}`, '#bdb5a7', 22);
+  resumeAfterPick();
+}
 function openDrop() {
   dropNo++; offer = rollPerks();
-  state = 'pick'; dragId = null;
+  state = 'pick'; pickKind = 'perk'; dragId = null;
   $('pickNo').textContent = dropNo;
   const box = $('cards'); box.textContent = '';
   offer.forEach((p, i) => {
@@ -873,10 +949,10 @@ function openDrop() {
   showOnly('ovPick');
 }
 function choosePerk(i) {
-  if (state !== 'pick' || !offer[i]) return;
+  if (state !== 'pick' || pickKind !== 'perk' || !offer[i]) return;
   applyPerk(offer[i].id);
   floatText(offer[i].name.toUpperCase(), '#c9a6ff', 26);
-  state = 'play'; showOnly(null);
+  resumeAfterPick();
 }
 // bounce a round from the zombie it hit to another one just ahead of it
 function bounce(b, from, keep) {
@@ -923,7 +999,7 @@ function update(dt) {
   speed += ((live && !bossPhase ? cruise : 0) - speed) * Math.min(1, dt * 2);
   const prevDist = dist;
   dist += speed * dt;
-  if (live && drops.length && progress() >= drops[0]) { drops.shift(); openDrop(); }
+  if (live && drops.length && progress() >= drops[0]) { drops.shift(); askPick(openDrop); }
   if (live) updateMission(dt, R);
 
   shieldT = Math.max(0, shieldT - dt); freezeT = Math.max(0, freezeT - dt); flashT = Math.max(0, flashT - dt);
@@ -1890,7 +1966,8 @@ function updateBuffs() {
   }
 }
 function showOnly(id) {
-  for (const o of ['ovTitle', 'ovWin', 'ovLose', 'ovPick']) $(o).hidden = o !== id;
+  for (const o of ['ovTitle', 'ovWin', 'ovLose', 'ovPick', 'ovGun']) $(o).hidden = o !== id;
+  if (id) $('banner').hidden = true;
 }
 function play() {
   audioInit();
@@ -2082,7 +2159,7 @@ function boot(data) {
   requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
 }
 
-window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => choosePerk(i), perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), mission: () => ({ surv: survivors.filter(s => s.state === 'wait').map(s => ({ x: s.x, z: s.zAbs - dist })), id: mission && mission.id, vip: vip && Math.round(vip.hp), holdT: Math.round(holdT), rescued, lostSurv, fail: failReason }), theme: () => TH.name + (twist ? ' / ' + twist.id : ''), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: helis.length && helis.map(h => Math.round(h.hp)).join('/'), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
+window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => pickKind === 'gun' ? chooseGun(i % 2) : choosePerk(i), pickKind: () => pickKind, perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), mission: () => ({ surv: survivors.filter(s => s.state === 'wait').map(s => ({ x: s.x, z: s.zAbs - dist })), id: mission && mission.id, vip: vip && Math.round(vip.hp), holdT: Math.round(holdT), rescued, lostSurv, fail: failReason }), theme: () => TH.name + (twist ? ' / ' + twist.id : ''), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: helis.length && helis.map(h => Math.round(h.hp)).join('/'), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
 window.claude?.hot?.snapshot?.(() => ({ level }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 })();

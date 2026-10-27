@@ -23,7 +23,8 @@ controls, safe-area insets, home-screen mode). It also works on desktop
   fast until it flips to `+`, a `+` gate counts up more slowly. Most pairs have a bad side;
   a double-red pair never opens a level and always has one side that is quick to flip.
 - **Crates** open when shot. Each one is labelled with what it gives:
-  - Weapons: **SMG** (fast, sprays), **SHOTGUN** (6-pellet blast, short range),
+  - Weapons (the game pauses and shows your current gun next to the new one, with damage,
+    range and crowd bars, and you pick which to keep): **SMG** (fast, sprays), **SHOTGUN** (6-pellet blast, short range),
     **LASER** (pierces a line of zombies), **ROCKETS** (slow, splash damage),
     **MINIGUN** (very fast, light rounds), **FLAMER** (short range, sets zombies on fire),
     **RAILGUN** (slow, pierces everything in its path), **TESLA** (lightning chains to 3 more zombies).
