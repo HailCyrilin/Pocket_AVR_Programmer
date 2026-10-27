@@ -282,7 +282,7 @@ body{
 <div id="lrHud" hidden>
   <div class="hud-row">
     <div class="chip">LV <span id="lrLevel">1</span></div>
-    <div class="chip" id="lrStatus">Breach 20s</div>
+    <div class="chip" id="lrStatus">Contact</div>
     <div class="chip"><span id="lrFoe">0</span><small>enemy</small></div>
   </div>
   <div id="lrBuffs" class="buffs" aria-label="Weapon and tanks"></div>
@@ -298,13 +298,13 @@ body{
 
 <div id="lrTitle" class="ov" hidden>
   <div class="card">
-    <p class="eyebrow">Hold the gate · build an army</p>
+    <p class="eyebrow">Build an army · hold the road</p>
     <h1>Box <span style="color:var(--hazard)">Breaker</span></h1>
     <ul class="rules">
       <li><span class="tag blue">+1</span>Blue boxes break fast and add a few soldiers.</li>
       <li><span class="tag gold">+99</span>Gold boxes take longer but add a crowd. Green ×2 doubles your army.</li>
       <li><span class="tag drop">GUN</span>Purple boxes hold new guns; steel-blue boxes send a tank.</li>
-      <li><span class="tag red">BREACH</span>When the barricade timer runs out, the red army and its chief charge.</li>
+      <li><span class="tag red">ARMY</span>The red army and its chief march at you from the start: thin them out while you build up.</li>
     </ul>
     <p>Drag to move. Your squad shoots the lane it stands in.</p>
     <button id="lrPlay" class="btn" type="button">Play</button>
@@ -2476,7 +2476,7 @@ const LANE = 2.6;              // half width of the centre lane (the horde's lan
 const ROAD = 7.2;              // half width of the whole road
 const COLX = 4.9;              // centre of each side lane, where the boxes stack
 const BOX_W = 3.6, BOX_H = 1.5, BOX_D = 1.3, BOX_GAP = 1.75;
-const WALL_Z = 24, FAR = 100, NEAR = -6;
+const START_Z = 46, FAR = 100, NEAR = -6;   // the army starts this far out and marches in
 const COLS = 9, SP = 0.55;     // horde formation: columns across, row spacing
 const CAM_H = 15, CAM_BACK = 11, PITCH = 36 * Math.PI / 180, COS = Math.cos(PITCH), SIN = Math.sin(PITCH);
 const ZC0 = CAM_H * SIN + CAM_BACK * COS, YC0 = -CAM_H * COS + CAM_BACK * SIN;
@@ -2624,7 +2624,8 @@ const squadR = n => 0.34 * Math.sqrt(n) + 0.25;
 let state = 'menu', level = 1, best = 1, t = 0;
 let N = 1, px = 0, targetPx = 0, fireMul = 1, fireAcc = 0;
 let blue = [], gold = [], bullets = [], parts = [], texts = [];
-let E = 0, eHp = 1, pool = 0, front = WALL_Z + 0.8, breachT = 20, breached = false, lossAcc = 0;
+let E = 0, eHp = 1, pool = 0, front = START_Z, lossAcc = 0;
+const marchSpeed = () => (1.3 + 0.05 * level) * (chillT > 0 ? 0.6 : 1);
 let chief = null, endT = 0, kills = 0, weapon = 'rifle', tanks = [], chillT = 0, offerGun = null;
 const MAX_TANKS = 3;
 
@@ -2632,7 +2633,7 @@ function setup() {
   N = 1; px = 0; targetPx = 0; fireMul = 1; fireAcc = 0; lossAcc = 0; kills = 0; endT = 0;
   weapon = 'rifle'; tanks = []; chillT = 0; offerGun = null;
   bullets = []; parts = []; texts = [];
-  const hm = 1 + 0.15 * (level - 1), vm = 1 + 0.25 * (level - 1);
+  const hm = 1 + 0.04 * (level - 1), vm = 1 + 0.25 * (level - 1);
   // left lane: many quick blue boxes, with a ×2 now and then
   blue = [];
   for (let i = 0; i < 40; i++) {
@@ -2657,10 +2658,11 @@ function setup() {
   for (const i of [8, 17, 26]) Object.assign(gold[i], { kind: 'gun', gun: pickGun() });
   for (const i of [3, 12, 21, 30]) Object.assign(gold[i], { kind: 'tank', hp: gold[i].hp * 1.2 });
   for (const b of [...blue, ...gold]) { b.max = b.hp; b.fl = 0; b.dead = false; }
-  E = Math.round(480 * Math.pow(1.36, level - 1)); eHp = 6 + 1.5 * (level - 1); pool = 0;
+  const early = Math.min(level, 5) - 1, late = Math.max(0, level - 5);
+  E = Math.round(480 * Math.pow(1.36, early) * Math.pow(1.2, late)); eHp = 6 + 1.5 * early + 0.8 * late; pool = 0;
   const chp = Math.round(300 * Math.pow(1.4, level - 1));
   chief = { hp: chp, max: chp, z: 0, biteT: 0, fl: 0, ph: 0 };
-  breachT = 14 + Math.min(level, 10) * 0.6; breached = false; front = WALL_Z + 0.8;
+  front = START_Z;
 }
 
 /* ---------- effects ---------- */
@@ -2726,19 +2728,14 @@ function update(dt) {
   targetPx = clamp(targetPx, -lim, lim);
   px += (targetPx - px) * Math.min(1, dt * 14);
 
-  if (live && !breached && (breachT -= dt) <= 0) {
-    breached = true; shake = 1; sfx.boom();
-    burst(0, 1.2, WALL_Z, 50, ['#8a8f96', '#5f646b', '#f2c230', '#1d1b1f'], 7, 1.2, 0.2);
-    floatText('THEY BROKE THROUGH!', '#ff6b5e', 26, 0, 6);
-  }
   chillT = Math.max(0, chillT - dt);
-  if (breached && E > 0) front = Math.max(R + 0.6, front - (5 + level * 0.06) * (chillT > 0 ? 0.6 : 1) * dt);
+  if (live && E > 0) front = Math.max(R + 0.6, front - marchSpeed() * dt);
 
   // the chief marches at the back of the horde, then charges alone
-  const chiefZ = breached ? front + rowsOf(E) * SP + 1.6 : WALL_Z + rowsOf(E) * SP + 2.4;
+  const chiefZ = front + rowsOf(E) * SP + 1.6;
   if (chief.hp > 0) {
     chief.ph += dt * 3; chief.fl -= dt;
-    if (E > 0 || !breached) chief.z = chiefZ;
+    if (E > 0) chief.z = chiefZ;
     else chief.z = Math.max(R + 1.6, chief.z - 2.6 * dt);
   }
 
@@ -2776,8 +2773,6 @@ function update(dt) {
         b.dead = true; box.hp -= b.dmg; box.fl = 0.06;
         if (box.hp <= 0) breakBox(box, b.x < 0 ? -1 : 1);
       }
-    } else if (!breached) {
-      if (b.z >= WALL_Z - 0.3) { b.dead = true; if (Math.random() < 0.15) burst(b.x, 1.2, WALL_Z - 0.3, 1, ['#ffe9a8', '#ffffff'], 2, 0.2, 0.08); }
     } else if (E > 0) {
       if (b.z >= front) {
         b.dead = true; pool += b.dmg * b.w.crowd;
@@ -2799,7 +2794,7 @@ function update(dt) {
   bullets = bullets.filter(b => !b.dead);
 
   // melee: the horde's front row trades soldiers one for one
-  if (live && breached && E > 0 && front <= R + 0.61) {
+  if (live && E > 0 && front <= R + 0.61) {
     lossAcc += dt * (40 + E * 0.35);          // a bigger horde pushes harder
     while (lossAcc >= 1 && E > 0 && N > 0) {
       lossAcc -= 1; E--;
@@ -2864,34 +2859,6 @@ function drawBox(b, side) {
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(m[0] - w / 2, y, w, hgt);
     ctx.fillStyle = '#fff'; ctx.fillRect(m[0] - w / 2, y, w * Math.max(0, b.hp / b.max), hgt);
   }
-}
-function drawWall() {
-  const z = WALL_Z, h = 2.4;
-  const a = proj(-LANE, 0, z), b = proj(LANE, 0, z), c = proj(LANE, h, z), d = proj(-LANE, h, z);
-  if (!a || !c) return;
-  const gr = ctx.createLinearGradient(0, d[1], 0, a[1]);
-  gr.addColorStop(0, '#a9adb3'); gr.addColorStop(1, '#6f747b');
-  quad(a, b, c, d, gr);
-  // hazard bands top and bottom
-  for (const [y0, y1] of [[h - 0.35, h], [0, 0.3]]) {
-    const p0 = proj(-LANE, y0, z), p1 = proj(LANE, y0, z), p2 = proj(LANE, y1, z), p3 = proj(-LANE, y1, z);
-    quad(p0, p1, p2, p3, '#1d1b1f');
-    ctx.save(); ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.lineTo(p3[0], p3[1]); ctx.clip();
-    ctx.fillStyle = '#f2c230'; const sw = (p1[0] - p0[0]) / 12;
-    for (let i = -1; i < 13; i++) { ctx.beginPath(); ctx.moveTo(p0[0] + i * sw, p0[1]); ctx.lineTo(p0[0] + i * sw + sw * 0.5, p0[1]); ctx.lineTo(p0[0] + i * sw + sw, p3[1]); ctx.lineTo(p0[0] + i * sw + sw * 0.5, p3[1]); ctx.fill(); }
-    ctx.restore();
-  }
-  for (const sx of [-LANE, LANE]) {
-    const pb = proj(sx, 0, z), pt = proj(sx, h + 0.4, z);
-    ctx.strokeStyle = '#3a3e45'; ctx.lineWidth = Math.max(3, 0.35 * pb[2]);
-    ctx.beginPath(); ctx.moveTo(pb[0], pb[1]); ctx.lineTo(pt[0], pt[1]); ctx.stroke();
-  }
-  const m = proj(0, h * 0.5, z);
-  const txt = String(Math.ceil(breachT));
-  const size = Math.max(12, 1.2 * m[2]);
-  ctx.font = `${size}px Bungee, Impact, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineWidth = Math.max(3, size * 0.12); ctx.strokeStyle = '#fff'; ctx.fillStyle = breachT < 5 ? '#d2382c' : '#1d1b1f';
-  ctx.strokeText(txt, m[0], m[1]); ctx.fillText(txt, m[0], m[1]);
 }
 function drawRow(z, n) {
   const p = proj(0, 0, z); if (!p) return;
@@ -2972,8 +2939,7 @@ function draw() {
   const list = [];
   for (const b of blue) if (!b.dead) list.push([b.z, 0, b, -1]);
   for (const b of gold) if (!b.dead) list.push([b.z, 0, b, 1]);
-  if (!breached) list.push([WALL_Z, 1]);
-  const rows = rowsOf(E), drawRows = Math.min(rows, 60), fz = breached ? front : WALL_Z + 0.8;
+  const rows = rowsOf(E), drawRows = Math.min(rows, 60), fz = front;
   for (let r = 0; r < drawRows; r++) list.push([fz + r * SP, 2, r === rows - 1 ? E - (rows - 1) * COLS : COLS]);
   if (chief.hp > 0) list.push([chief.z, 3]);
   const nVis = Math.min(N, MAXVIS);
@@ -2982,7 +2948,6 @@ function draw() {
   list.sort((a, b) => b[0] - a[0]);
   for (const it of list) {
     if (it[1] === 0) drawBox(it[2], it[3]);
-    else if (it[1] === 1) drawWall();
     else if (it[1] === 2) drawRow(it[0], it[2]);
     else if (it[1] === 3) drawChief();
     else if (it[1] === 4) drawSoldier(it[2]);
@@ -3029,7 +2994,7 @@ function draw() {
   ctx.globalAlpha = 1;
 
   // counts: the horde above its front row, the squad under its feet
-  if (E > 0) { const p = proj(0, breached ? 2.2 : 3.6, fz + (breached ? 0 : Math.min(rowsOf(E), 60) * SP)); if (p) badge(String(E), p[0], p[1], '#d2382c', 22); }
+  if (E > 0) { const p = proj(0, 2.4, fz); if (p) badge(String(E), p[0], p[1], '#d2382c', 22); }
   if (N > 0 && state !== 'menu') { const p = proj(px, 0, -squadR(Math.max(1, nVis)) - 0.6); if (p) badge(String(Math.floor(N)), p[0], Math.min(p[1] + 30, H - 28), '#3f8cff', 26); }
   for (const tx of texts) {
     ctx.globalAlpha = Math.max(0, 1 - tx.t / 1.1);
@@ -3044,7 +3009,8 @@ function draw() {
 let hudKey = '';
 function updateHud() {
   $('lrLevel').textContent = level;
-  $('lrStatus').textContent = breached ? 'Charge!' : `Breach ${Math.ceil(breachT)}s`;
+  const nv = Math.max(1, Math.min(N, MAXVIS));
+  $('lrStatus').textContent = E > 0 ? (front <= squadR(nv) + 0.65 ? 'Contact!' : `Contact ${Math.ceil((front - squadR(nv) - 0.6) / marchSpeed())}s`) : 'Chief!';
   $('lrFoe').textContent = E + (chief.hp > 0 ? ' +chief' : '');
   const key = weapon + '|' + fireMul.toFixed(2) + '|' + tanks.length;
   if (key !== hudKey) {
@@ -3087,7 +3053,7 @@ function finish(won) {
   state = 'end';
   $('lrEndEyebrow').textContent = `Level ${level}`;
   $('lrEndTitle').textContent = won ? 'Horde crushed' : 'Overrun';
-  $('lrEndText').textContent = won ? 'Your army held the line and took down their chief.' : 'Break more boxes before the barricade falls, and grab the ×2 boxes early.';
+  $('lrEndText').textContent = won ? 'Your army held the line and took down their chief.' : 'Grab the ×2 boxes early, and turn your guns on the army before it gets close.';
   $('lrEndKills').textContent = kills; $('lrEndArmy').textContent = Math.floor(N);
   $('lrNext').textContent = won ? 'Next level' : 'Try again';
   if (won) { level++; best = Math.max(best, level); save(); }
@@ -3140,7 +3106,7 @@ window.lr = { enter, leave };
 // test hooks
 window.__lr = {
   update: dt => update(dt), setLevel: n => { level = n; }, play, steer: x => { targetPx = x; }, choose: take => chooseGun(take),
-  get: () => ({ state, level, N, E, chief: chief && Math.round(chief.hp), breached, breachT: +breachT.toFixed(1), px, weapon, tanks: tanks.length, front: +front.toFixed(1), thp: tanks.map(x => Math.round(x.hp)).join('/'),
+  get: () => ({ state, level, N, E, chief: chief && Math.round(chief.hp), toContact: E > 0 ? (front - 1) / marchSpeed() : 0, eHp, px, weapon, tanks: tanks.length, front: +front.toFixed(1), thp: tanks.map(x => Math.round(x.hp)).join('/'),
     blue: blue.find(b => !b.dead), gold: gold.find(b => !b.dead) }),
 };
 })();

@@ -20,8 +20,8 @@ Based on the "Top War" lane ads. You start with one soldier in front of three la
   green `×2` box now and then.
 - **Right lane**: gold boxes worth a crowd (`+20` ... `+99` and up) but much tougher, with an
   orange `FIRE+` box every sixth.
-- **Centre lane**: a red army waits behind a barricade with a countdown. When it reaches
-  zero the army charges, followed by its chief.
+- **Centre lane**: a red army and its chief march toward you from the start. Shoot into
+  the centre to thin them out; if they reach you, each one takes two soldiers with it.
 
 - **Purple boxes** hold guns (the same 13 as Horde Highway; you choose keep or swap, with
   stats). Guns with a high crowd rating (rockets, grenades, railgun, tesla, laser) hit the
@@ -30,8 +30,8 @@ Based on the "Top War" lane ads. You start with one soldier in front of three la
   blows first; more tank boxes repair the weakest.
 
 Drag to move; your squad shoots the lane it stands in. Each box down a lane is tougher than
-the last, so choose between quick blue boxes and big gold ones before the timer runs out,
-then hold the centre and wipe out the army and its chief. Each level brings a bigger army.
+the last: split your time between growing the army and shooting the horde before it
+arrives, then finish its chief. Each level brings a bigger army.
 Progress saves like Horde Highway's.
 
 ## Play on iPhone
