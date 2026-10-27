@@ -1,7 +1,7 @@
 # Horde Arcade
 
-Two games in one page: **Horde Highway** and **Box Breaker**. Opening the page shows a
-game picker; each game has an **All games** button to go back.
+Three games in one page: **Horde Highway**, **Box Breaker** and **Zombie Miner**. Opening the
+page shows a game picker; each game has a button to go back to it.
 
 ## Horde Highway
 
@@ -33,6 +33,26 @@ Drag to move; your squad shoots the lane it stands in. Each box down a lane is t
 the last: split your time between growing the army and shooting the horde before it
 arrives, then finish its chief. Each level brings a bigger army.
 Progress saves like Horde Highway's, and the title screen has the same **Start at level** picker.
+
+## Zombie Miner
+
+An idle merge game. Zombie miners stand in a yard of 10 slots under a wall of crystal rocks,
+each marked with its level, and dig the rock above them for coins. When a rock breaks, the
+rocks above it drop down.
+
+- **Merge:** drag a zombie onto another of the same level to make one a level higher, which
+  digs a little over twice as fast. Drag onto an empty slot to move it.
+- **Tap a rock** to help dig.
+- **Buy** a zombie a few levels below your best; the price rises with each one you buy at
+  that level. When the yard is full, Buy swaps out your weakest zombie instead.
+- **Special rocks:** gold rocks pay triple, red rocks give gems, green rocks give a potion,
+  and chests give a free zombie.
+- **Boost ×2** uses a potion to double digging speed for 60 seconds. **Gem chest** spends
+  gems on a zombie two levels below your best, and costs more each time.
+- Clearing every rock moves you down to the next mine, which has tougher rocks and pays a
+  gem bonus.
+- **Offline earnings:** while the game is closed, your zombies keep digging at a third of
+  the rate, for up to 4 hours.
 
 ## Play on iPhone
 
@@ -103,6 +123,8 @@ Progress saves automatically when you clear a level and when you buy an upgrade:
 to continue from, your best level, coins and upgrades. The title screen offers
 **Continue · level N** and a **Start at level** picker for any level you have reached.
 Quitting mid-level restarts that level.
+
+Zombie Miner saves every few seconds: coins, gems, the yard and the current mine.
 
 The save is kept in the browser (`localStorage`). When the game runs as a claude.ai
 artifact and you are signed in, it is also kept in your private slot of the artifact's

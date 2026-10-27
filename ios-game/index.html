@@ -44,7 +44,7 @@ body{
 #game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--night)}
 .night-fx{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 65%,rgba(10,8,30,0) 35%,rgba(10,8,30,.55) 100%)}
 
-#hud,#lrHud{
+#hud,#lrHud,#zmHud{
   position:fixed;inset:0 0 auto;pointer-events:none;display:grid;gap:8px;
   padding-top:calc(env(safe-area-inset-top,0px) + 10px);
   padding-left:max(16px,env(safe-area-inset-left,0px));
@@ -112,13 +112,32 @@ body{
 .btn.ghost{background:transparent;color:var(--ink);box-shadow:none;border:2px solid rgba(255,255,255,.25);font-size:17px;padding:10px 16px}
 .lr-canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:#cfc8bb}
 .lr-canvas[hidden]{display:none}
+.zm-canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:#4a2f1c}
+#zmHud .hud-row{justify-content:space-between}
+#zmHud .chip.gems{color:#ff8fa3}#zmHud .chip.coins{color:var(--coin)}
+.zm-games{pointer-events:auto;cursor:pointer;border:0}
+#zmBar{
+  position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(16px,env(safe-area-inset-left,0px));
+}
+#zmBar[hidden]{display:none}
+#zmBar button{
+  display:grid;gap:4px;justify-items:center;padding:10px 6px;border-radius:12px;border:0;cursor:pointer;
+  font-family:var(--body);color:var(--night);background:var(--hazard);box-shadow:0 4px 0 #a9851a;
+}
+#zmBar button b{font:400 15px/1 var(--display)}
+#zmBar button span{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+#zmBar button.boost{background:#6bf07a;box-shadow:0 4px 0 #2f9e3c}
+#zmBar button.chest{background:#c9a6ff;box-shadow:0 4px 0 #7a4fd0}
+#zmBar button:active{transform:translateY(3px);box-shadow:none}
+#zmBar button:disabled{opacity:.5;cursor:default;transform:none}
 .hub{gap:14px}
 .hub h1 span{color:var(--hazard)}
 .game-pick{
   display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;cursor:pointer;
   padding:14px;border-radius:12px;border:2px solid var(--g);background:rgba(255,255,255,.05);color:var(--ink);font-family:var(--body);
 }
-.game-pick.hh{--g:var(--squad)}.game-pick.lr{--g:var(--hazard)}
+.game-pick.hh{--g:var(--squad)}.game-pick.lr{--g:var(--hazard)}.game-pick.zm{--g:#6bf07a}
 .game-pick:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
 .game-pick:active{background:rgba(255,255,255,.12)}
 .game-pick b{font:400 22px/1.05 var(--display)}
@@ -331,6 +350,32 @@ body{
   </div>
 </div>
 
+<canvas id="zmCanvas" class="zm-canvas" hidden aria-label="Zombie Miner game"></canvas>
+<div id="zmHud" hidden>
+  <div class="hud-row">
+    <button class="chip zm-games" id="zmGames" type="button" aria-label="All games">&#9664; Games</button>
+    <div class="chip">MINE <span id="zmMine">1</span></div>
+  </div>
+  <div class="hud-row">
+    <div class="chip coins"><span id="zmCoins">0</span><small>coins</small></div>
+    <div class="chip gems"><span id="zmGems">0</span><small>gems</small></div>
+    <div class="chip"><span id="zmDps">0</span><small>dig</small></div>
+  </div>
+</div>
+<div id="zmBar" hidden>
+  <button id="zmBuy" type="button"></button>
+  <button id="zmBoost" class="boost" type="button"></button>
+  <button id="zmChest" class="chest" type="button"></button>
+</div>
+<div id="zmAway" class="ov" hidden>
+  <div class="card">
+    <p class="eyebrow">Welcome back</p>
+    <h2>Mine haul</h2>
+    <p id="zmAwayText"></p>
+    <button class="btn" id="zmCollect" type="button">Collect</button>
+  </div>
+</div>
+
 <div id="hub" class="ov">
   <div class="card hub">
     <p class="eyebrow">Choose a game</p>
@@ -340,6 +385,9 @@ body{
     </button>
     <button class="game-pick lr" type="button" data-game="lr">
       <b>Box Breaker</b><span>Shoot +1 and +99 boxes to raise an army before the red horde breaks through.</span><em id="hubLR">New</em>
+    </button>
+    <button class="game-pick zm" type="button" data-game="zm">
+      <b>Zombie Miner</b><span>Merge zombie miners into stronger ones and dig deeper through the crystal mine.</span><em id="hubZM">New</em>
     </button>
   </div>
 </div>
@@ -2437,7 +2485,7 @@ let lastTs = 0;
 function frame(ts) {
   const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000));
   lastTs = ts;
-  if (!document.hidden && window.activeGame !== 'lr') {
+  if (!document.hidden && (window.activeGame === 'hub' || window.activeGame === 'hh')) {
     if (state === 'title' || state === 'pick') { t += dt; for (const z of zombies) z.ph += dt * (state === 'pick' ? 0.5 : 3); }
     else update(dt);
     draw();
@@ -3127,6 +3175,454 @@ window.__lr = {
 })();
 </script>
 <script>
+/* =====================================================================
+   Zombie Miner: merge zombie miners in the yard; they dig the crystal
+   wall above them for coins, gems and potions, one mine floor at a time.
+   ===================================================================== */
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const cvs = $('zmCanvas'), ctx = cvs.getContext('2d');
+
+/* ---------- numbers ---------- */
+// 1.2K, 3.4M, 5.6B, 7.8T, then aa, ab, ... like idle games do
+function fmt(n) {
+  if (!isFinite(n)) return '∞';
+  if (n < 1000) return String(Math.floor(n));
+  const idx = Math.floor(Math.log10(n) / 3), v = n / Math.pow(1000, idx);
+  let suf;
+  if (idx <= 4) suf = ['', 'K', 'M', 'B', 'T'][idx];
+  else { const k = idx - 5; suf = String.fromCharCode(97 + Math.floor(k / 26) % 26) + String.fromCharCode(97 + k % 26); }
+  return (v < 100 ? v.toFixed(1) : Math.floor(v)) + suf;
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+const ri = (a, b) => Math.floor(rnd(a, b + 1));
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+function rr(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function circ(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+
+/* ---------- economy ---------- */
+const COLS = 5, ROWS = 8, SLOTS = 10;           // 5 columns of rock; 2 rows of 5 yard slots
+const zDps = L => 2 * Math.pow(2.15, L - 1);              // dig power per second of a level-L zombie
+const blockHp = l => 4 * Math.pow(2.1, l - 1);
+const blockCoins = l => 2.5 * Math.pow(1.9, l - 1);
+const spawnLevel = () => Math.max(1, best - 5);           // the shop sells zombies a few levels below your best
+// price rises with each zombie bought at the current shop level, and resets when the shop level goes up
+const buyCost = () => 25 * Math.pow(2.3, spawnLevel() - 1) * Math.pow(1.12, buys);
+const chestCost = () => Math.round(30 * Math.pow(1.3, chests));
+// with a full yard, buying swaps out your weakest zombie if it is below the shop level
+function swapSlot() {
+  let k = -1;
+  for (let i = 0; i < SLOTS; i++) if (yard[i] && yard[i] < spawnLevel() && (k < 0 || yard[i] < yard[k])) k = i;
+  return k;
+}
+
+/* ---------- state ---------- */
+let coins = 20, gems = 0, potions = 1, floor = 1, best = 1, buys = 0, chests = 0, boostT = 0, lastSeen = Date.now();
+let blocks = [];           // ROWS × COLS; row 0 is the bottom row, nearest the yard
+let yard = new Array(SLOTS).fill(0);   // zombie level per slot, 0 = empty
+let parts = [], texts = [], swing = new Array(SLOTS).fill(0), t = 0, banner = null;
+
+function makeFloor() {
+  blocks = [];
+  for (let r = 0; r < ROWS; r++) {
+    const row = [];
+    for (let c = 0; c < COLS; c++) {
+      const l = floor + Math.floor(r * 1.1) + ri(0, 1);
+      const roll = Math.random();
+      const kind = roll < 0.05 ? 'gem' : roll < 0.09 ? 'potion' : roll < 0.12 ? 'chest' : roll < 0.2 ? 'gold' : 'rock';
+      const hp = blockHp(l) * (kind === 'chest' ? 2 : kind === 'gold' ? 1.3 : 1);
+      row.push({ l, kind, hp, max: hp, fl: 0 });
+    }
+    blocks.push(row);
+  }
+}
+const totalDps = () => yard.reduce((a, L) => a + (L ? zDps(L) : 0), 0) * (boostT > 0 ? 2 : 1);
+// the block a zombie in this column digs: the lowest one left in its column, else the lowest anywhere nearest it
+function targetFor(col) {
+  for (let r = 0; r < ROWS; r++) if (blocks[r][col].hp > 0) return [r, col];
+  let bestT = null, bd = 99;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (blocks[r][c].hp <= 0) continue;
+    const d = r * 2 + Math.abs(c - col);
+    if (d < bd) { bd = d; bestT = [r, c]; }
+  }
+  return bestT;
+}
+function freeSlot() { return yard.findIndex(L => !L); }
+function addZombie(L) {
+  const i = freeSlot(); if (i < 0) return false;
+  yard[i] = L; setBest(L); return true;
+}
+function setBest(L) { if (L > best) { best = L; buys = 0; } }
+function damage(r, c, dmg) {
+  const b = blocks[r][c]; if (b.hp <= 0) return;
+  b.hp -= dmg; b.fl = 0.08;
+  if (b.hp <= 0) breakBlock(r, c);
+}
+function breakBlock(r, c) {
+  const b = blocks[r][c]; b.hp = 0;
+  const [x, y] = blockXY(r, c);
+  const col = { rock: ['#5aa8ff', '#9fd0ff', '#2f6fd0'], gold: ['#ffd23f', '#fff0a0', '#c99a14'], gem: ['#ff3b5c', '#ffb0c0', '#b31232'], potion: ['#6bf07a', '#c8ffd0', '#2f9e3c'], chest: ['#a8743a', '#f2c230', '#6e4a22'] }[b.kind];
+  for (let i = 0; i < 16; i++) parts.push({ x, y, vx: rnd(-1, 1) * 160, vy: rnd(-1.4, 0.2) * 160, life: rnd(0.4, 0.8), c: col[ri(0, 2)], s: rnd(3, 7) });
+  let got = blockCoins(b.l) * (b.kind === 'gold' ? 3 : 1);
+  coins += got; texts.push({ x, y, txt: '+' + fmt(got), col: '#ffd23f', t: 0 });
+  if (b.kind === 'gem') { const g = 3; gems += g; texts.push({ x, y: y - 22, txt: `+${g} gems`, col: '#ff8fa3', t: 0 }); }
+  if (b.kind === 'potion') { potions++; texts.push({ x, y: y - 22, txt: '+1 potion', col: '#8dff9a', t: 0 }); }
+  if (b.kind === 'chest') {
+    const L = Math.max(1, best - 3);
+    if (addZombie(L)) texts.push({ x, y: y - 22, txt: `Zombie lv ${L}!`, col: '#c9a6ff', t: 0 });
+    else { const bonus = blockCoins(b.l) * 5; coins += bonus; texts.push({ x, y: y - 22, txt: '+' + fmt(bonus), col: '#ffd23f', t: 0 }); }
+  }
+  // the rocks above drop down to fill the gap
+  for (let rr = r; rr < ROWS - 1; rr++) { blocks[rr][c] = blocks[rr + 1][c]; blocks[rr][c].dy = (blocks[rr][c].dy || 0) + BW; }
+  blocks[ROWS - 1][c] = { l: 0, kind: 'rock', hp: 0, max: 1, fl: 0 };
+  if (blocks.every(row => row.every(x => x.hp <= 0))) floorDone();
+}
+function floorDone() {
+  const g = 10, bonus = blockCoins(floor + 8) * 4;
+  gems += g; coins += bonus;
+  banner = { txt: `MINE ${floor} CLEARED`, sub: `+${g} gems · +${fmt(bonus)} coins`, t: 0 };
+  floor++; makeFloor(); save();
+}
+
+/* ---------- actions ---------- */
+function buy() {
+  const cost = buyCost();
+  const free = freeSlot(), slot = free >= 0 ? free : swapSlot();
+  if (coins < cost || slot < 0) return false;
+  coins -= cost; buys++;
+  yard[slot] = spawnLevel();
+  return true;
+}
+function boost() { if (potions < 1) return; potions--; boostT += 60; }
+function gemChest() {
+  if (gems < chestCost() || freeSlot() < 0) return;
+  gems -= chestCost(); chests++; addZombie(Math.max(1, best - 2));
+}
+function merge(a, b) {
+  // drop zombie a onto slot b
+  if (a === b) return;
+  if (!yard[b]) { yard[b] = yard[a]; yard[a] = 0; }
+  else if (yard[a] === yard[b]) {
+    yard[b]++; yard[a] = 0; setBest(yard[b]);
+    const [x, y] = slotXY(b);
+    for (let i = 0; i < 18; i++) parts.push({ x, y: y - 20, vx: rnd(-1, 1) * 140, vy: rnd(-1.5, 0) * 140, life: rnd(0.4, 0.8), c: ['#8dff9a', '#ffffff', '#ffd23f'][ri(0, 2)], s: rnd(3, 6) });
+    texts.push({ x, y: y - 40, txt: `LV ${yard[b]}`, col: '#8dff9a', t: 0 });
+  } else { const tmp = yard[b]; yard[b] = yard[a]; yard[a] = tmp; }
+  save();
+}
+
+/* ---------- layout ---------- */
+let W = 0, H = 0, DPR = 1, BW = 60, MX = 0, MY = 0, YY = 0;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cvs.clientWidth; H = cvs.clientHeight;
+  if (!W || !H) return;
+  cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
+  const top = 118, bottom = 150;                       // room for the HUD and the button bar
+  BW = Math.min((W - 24) / COLS, (H - top - bottom) / (ROWS + 2.9));
+  MX = (W - BW * COLS) / 2;
+  YY = H - bottom - BW * 2.05;                         // top of the yard
+  MY = YY - BW * 0.55;                                 // bottom edge of the rock wall
+}
+window.addEventListener('resize', resize);
+const blockXY = (r, c) => [MX + (c + 0.5) * BW, MY - (r + 0.5) * BW];
+const slotXY = i => [MX + ((i % COLS) + 0.5) * BW, YY + (Math.floor(i / COLS) + 0.85) * BW];
+
+/* ---------- sprites ---------- */
+const SPR = {};
+function zombieSprite(L) {
+  if (SPR[L]) return SPR[L];
+  const c = document.createElement('canvas'); c.width = 120; c.height = 140;
+  const g = c.getContext('2d'); g.scale(2, 2);
+  const tier = Math.floor((L - 1) / 5);
+  const shirts = ['#8a6d5a', '#3f7fd0', '#c4302b', '#7a4fd0', '#2f9e5c', '#d08a2a', '#1d1b1f', '#e0e0e0'];
+  const shirt = shirts[tier % shirts.length];
+  const cx = 30;
+  // legs, body, arms
+  g.fillStyle = '#3a3f4a'; g.fillRect(cx - 9, 48, 7, 18); g.fillRect(cx + 2, 48, 7, 18);
+  g.fillStyle = '#231f1d'; g.fillRect(cx - 10, 64, 9, 4); g.fillRect(cx + 1, 64, 9, 4);
+  g.fillStyle = shirt; rr(g, cx - 12, 30, 24, 22, 6); g.fill();
+  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(cx, 30, 12, 22);
+  g.fillStyle = '#8fbf5a'; circ(g, cx - 13, 44, 4); circ(g, cx + 13, 44, 4);
+  // head: green, flat top, stitches
+  g.fillStyle = '#9fd06a'; rr(g, cx - 12, 6, 24, 25, 7); g.fill();
+  g.fillStyle = '#2a3a1a'; g.fillRect(cx - 12, 6, 24, 6);
+  g.fillStyle = '#fff'; circ(g, cx - 5, 18, 4); circ(g, cx + 5, 18, 3.4);
+  g.fillStyle = '#1d1b1f'; circ(g, cx - 4.5, 18.5, 1.8); circ(g, cx + 5.5, 18.5, 1.6);
+  g.strokeStyle = '#2a3a1a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx - 6, 26); g.lineTo(cx + 6, 25); g.stroke();
+  for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(cx + i * 4, 24); g.lineTo(cx + i * 4, 28); g.stroke(); }
+  g.fillStyle = '#7a7d84'; g.fillRect(cx - 14, 20, 3, 3); g.fillRect(cx + 11, 20, 3, 3);
+  // higher tiers get a hard hat with a lamp
+  if (tier >= 1) {
+    g.fillStyle = tier >= 4 ? '#ffd23f' : '#f2a830'; g.beginPath(); g.ellipse(cx, 8, 14, 6, 0, Math.PI, 0); g.fill(); g.fillRect(cx - 15, 7, 30, 3);
+    g.fillStyle = '#fff6c0'; circ(g, cx, 4, 2.5);
+  }
+  SPR[L] = c; return c;
+}
+function drawRock(x, y, s, b) {
+  const kindCol = { rock: ['#7ec1ff', '#3d8ce8', '#1f5fc4'], gold: ['#ffe58a', '#f2c230', '#b88a12'], gem: ['#ff8fa3', '#e8304e', '#9e1230'], potion: ['#b6ffbf', '#4fd062', '#1f8f3c'], chest: ['#d8a060', '#a8743a', '#6e4a22'] }[b.kind];
+  const [hi, mid, lo] = kindCol;
+  ctx.save(); ctx.translate(x, y);
+  const r = s * 0.46;
+  if (b.kind === 'chest') {
+    ctx.fillStyle = mid; rr(ctx, -r, -r * 0.6, r * 2, r * 1.3, r * 0.25); ctx.fill();
+    ctx.fillStyle = lo; ctx.fillRect(-r, -r * 0.05, r * 2, r * 0.18);
+    ctx.fillStyle = '#f2c230'; ctx.fillRect(-r * 0.14, -r * 0.3, r * 0.28, r * 0.5);
+    ctx.fillStyle = hi; rr(ctx, -r, -r * 0.6, r * 2, r * 0.4, r * 0.2); ctx.fill();
+  } else {
+    // a faceted crystal lump
+    ctx.fillStyle = b.fl > 0 ? '#ffffff' : mid;
+    ctx.beginPath();
+    const pts = 8;
+    for (let i = 0; i < pts; i++) { const a = i / pts * Math.PI * 2 + 0.3, rad = r * (i % 2 ? 0.86 : 1); ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = hi; ctx.beginPath(); ctx.moveTo(-r * 0.7, -r * 0.2); ctx.lineTo(-r * 0.2, -r * 0.8); ctx.lineTo(r * 0.3, -r * 0.55); ctx.lineTo(-r * 0.1, -r * 0.05); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = lo; ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.3); ctx.lineTo(r * 0.85, r * 0.15); ctx.lineTo(r * 0.5, r * 0.8); ctx.lineTo(-r * 0.1, r * 0.75); ctx.closePath(); ctx.fill();
+    if (b.kind === 'potion') { ctx.fillStyle = '#e8fff0'; rr(ctx, -r * 0.18, -r * 0.55, r * 0.36, r * 0.3, 3); ctx.fill(); }
+    if (b.kind === 'gem') { ctx.fillStyle = 'rgba(255,255,255,.7)'; circ(ctx, -r * 0.35, -r * 0.35, r * 0.12); }
+  }
+  // level number
+  const fs = Math.max(11, s * 0.36);
+  ctx.font = `${fs}px Bungee, Impact, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(3, fs * 0.16); ctx.strokeStyle = 'rgba(10,20,40,.75)'; ctx.fillStyle = '#fff';
+  ctx.strokeText(String(b.l), 0, r * 0.05); ctx.fillText(String(b.l), 0, r * 0.05);
+  // damage bar once it has been hit
+  if (b.hp < b.max) {
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(-r * 0.8, r * 0.78, r * 1.6, 5);
+    ctx.fillStyle = '#8dff9a'; ctx.fillRect(-r * 0.8, r * 0.78, r * 1.6 * Math.max(0, b.hp / b.max), 5);
+  }
+  ctx.restore();
+}
+
+/* ---------- update & draw ---------- */
+function update(dt) {
+  t += dt;
+  boostT = Math.max(0, boostT - dt);
+  const mult = boostT > 0 ? 2 : 1;
+  for (let i = 0; i < SLOTS; i++) {
+    const L = yard[i]; if (!L || i === drag.from && drag.active) continue;
+    const tg = targetFor(i % COLS); if (!tg) continue;
+    damage(tg[0], tg[1], zDps(L) * mult * dt);
+    swing[i] += dt * 7;
+    if (Math.random() < dt * 3) { const [x, y] = blockXY(tg[0], tg[1]); parts.push({ x: x + rnd(-8, 8), y: y + BW * 0.3, vx: rnd(-1, 1) * 70, vy: rnd(-1, 0) * 90, life: 0.4, c: '#bfe0ff', s: 3 }); }
+  }
+  for (const row of blocks) for (const b of row) { b.fl -= dt; if (b.dy) b.dy = Math.max(0, b.dy - dt * BW * 9); }
+  for (const p of parts) { p.vy += 500 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+  parts = parts.filter(p => p.life > 0);
+  if (parts.length > 400) parts.splice(0, parts.length - 400);
+  for (const tx of texts) tx.t += dt;
+  texts = texts.filter(tx => tx.t < 1.2);
+  if (banner && (banner.t += dt) > 3) banner = null;
+  lastSeen = Date.now();
+}
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // cave
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#5a3a22'); bg.addColorStop(0.6, '#4a2f1c'); bg.addColorStop(1, '#3a2416');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 26; i++) {
+    const x = (Math.sin(i * 91.7) * 0.5 + 0.5) * W, y = (Math.sin(i * 47.3) * 0.5 + 0.5) * H, s = 18 + (i % 5) * 9;
+    ctx.fillStyle = i % 3 ? 'rgba(0,0,0,.14)' : 'rgba(255,220,170,.06)';
+    ctx.beginPath(); ctx.ellipse(x, y, s, s * 0.7, i, 0, Math.PI * 2); ctx.fill();
+  }
+  // mine shaft behind the rock wall
+  ctx.fillStyle = 'rgba(30,18,10,.45)'; rr(ctx, MX - 6, MY - ROWS * BW - 6, BW * COLS + 12, ROWS * BW + 12, 10); ctx.fill();
+  for (let r = ROWS - 1; r >= 0; r--) for (let c = 0; c < COLS; c++) {
+    const b = blocks[r][c]; if (b.hp <= 0) continue;
+    const [x, y] = blockXY(r, c);
+    drawRock(x, y - (b.dy || 0), BW, b);
+  }
+  // fence between wall and yard
+  const fy = MY + BW * 0.18;
+  ctx.fillStyle = '#7a5a34'; ctx.fillRect(MX - 10, fy, BW * COLS + 20, 7);
+  ctx.fillStyle = '#5a5f68';
+  for (let c = 0; c <= COLS; c++) ctx.fillRect(MX - 6 + c * BW, fy - 8, 8, 22);
+  // yard slots and zombies
+  for (let i = 0; i < SLOTS; i++) {
+    const [x, y] = slotXY(i);
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y, BW * 0.36, BW * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+    const L = yard[i]; if (!L || (drag.active && drag.from === i)) continue;
+    drawZombie(L, x, y, BW, swing[i]);
+  }
+  if (drag.active && yard[drag.from]) drawZombie(yard[drag.from], drag.x, drag.y + BW * 0.3, BW * 1.1, 0);
+  // effects
+  for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life * 2.5); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const tx of texts) {
+    ctx.globalAlpha = Math.max(0, 1 - tx.t / 1.2);
+    ctx.font = '17px Bungee, Impact, sans-serif'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.fillStyle = tx.col;
+    const y = tx.y - tx.t * 50; ctx.strokeText(tx.txt, tx.x, y); ctx.fillText(tx.txt, tx.x, y);
+  }
+  ctx.globalAlpha = 1;
+  if (boostT > 0) { ctx.fillStyle = 'rgba(141,255,154,.08)'; ctx.fillRect(0, 0, W, H); }
+  if (banner) {
+    const a = Math.min(1, banner.t * 3, (3 - banner.t) * 2);
+    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(22,20,26,.88)'; rr(ctx, W / 2 - 160, H * 0.32 - 44, 320, 88, 14); ctx.fill();
+    ctx.font = '24px Bungee, Impact, sans-serif'; ctx.fillStyle = '#ffd23f'; ctx.fillText(banner.txt, W / 2, H * 0.32 - 12);
+    ctx.font = '600 17px "Barlow Condensed", sans-serif'; ctx.fillStyle = '#f6f1e7'; ctx.fillText(banner.sub, W / 2, H * 0.32 + 20);
+    ctx.globalAlpha = 1;
+  }
+}
+function drawZombie(L, x, y, s, sw) {
+  const img = zombieSprite(L), h = s * 1.05, w = h * img.width / img.height;
+  // pickaxe swinging up at the wall
+  const a = -0.9 + Math.abs(Math.sin(sw)) * 1.3;
+  ctx.save(); ctx.translate(x + w * 0.22, y - h * 0.45); ctx.rotate(a);
+  ctx.fillStyle = '#7a5a34'; ctx.fillRect(-2, -h * 0.42, 4, h * 0.45);
+  ctx.fillStyle = '#9aa0a8'; ctx.beginPath(); ctx.moveTo(-h * 0.18, -h * 0.4); ctx.quadraticCurveTo(0, -h * 0.5, h * 0.18, -h * 0.4); ctx.lineTo(0, -h * 0.44); ctx.fill();
+  ctx.restore();
+  ctx.drawImage(img, x - w / 2, y - h, w, h);
+  // level badge
+  ctx.fillStyle = '#1d1b1f'; circ(ctx, x - w * 0.28, y - h * 0.12, s * 0.17);
+  ctx.font = `${Math.max(10, s * 0.2)}px Bungee, Impact, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#8dff9a'; ctx.fillText(String(L), x - w * 0.28, y - h * 0.11);
+}
+
+/* ---------- HUD & buttons ---------- */
+let hudT = 0;
+function updateHud() {
+  $('zmCoins').textContent = fmt(coins);
+  $('zmGems').textContent = fmt(gems);
+  $('zmMine').textContent = floor;
+  $('zmDps').textContent = fmt(totalDps()) + '/s';
+  const cost = buyCost(), full = freeSlot() < 0, sw = full ? swapSlot() : -1;
+  $('zmBuy').innerHTML = full && sw < 0 ? `<b>Yard full</b><span>Merge!</span>`
+    : `<b>${full ? `Swap lv ${yard[sw]}→${spawnLevel()}` : `Buy lv ${spawnLevel()}`}</b><span>${fmt(cost)}</span>`;
+  $('zmBuy').disabled = (full && sw < 0) || coins < cost;
+  $('zmBoost').innerHTML = boostT > 0 ? `<b>×2 dig</b><span>${Math.ceil(boostT)}s</span>` : `<b>Boost ×2</b><span>${potions} potion${potions === 1 ? '' : 's'}</span>`;
+  $('zmBoost').disabled = potions < 1;
+  $('zmChest').disabled = gems < chestCost() || full;
+  $('zmChest').innerHTML = full ? `<b>Gem chest</b><span>Yard full</span>` : `<b>Gem chest</b><span>${chestCost()} gems</span>`;
+}
+$('zmBuy').addEventListener('click', () => { if (buy()) save(); updateHud(); });
+$('zmBoost').addEventListener('click', () => { boost(); updateHud(); save(); });
+$('zmChest').addEventListener('click', () => { gemChest(); updateHud(); save(); });
+$('zmGames').addEventListener('click', () => window.showHub && window.showHub());
+$('zmCollect').addEventListener('click', () => { $('zmAway').hidden = true; });
+
+/* ---------- input: tap rocks, drag zombies ---------- */
+const drag = { active: false, from: -1, x: 0, y: 0, id: null };
+function slotAt(x, y) {
+  for (let i = 0; i < SLOTS; i++) { const [sx, sy] = slotXY(i); if (Math.abs(x - sx) < BW / 2 && y < sy + BW * 0.2 && y > sy - BW) return i; }
+  return -1;
+}
+function blockAt(x, y) {
+  const c = Math.floor((x - MX) / BW), r = Math.floor((MY - y) / BW);
+  return c >= 0 && c < COLS && r >= 0 && r < ROWS && blocks[r][c].hp > 0 ? [r, c] : null;
+}
+cvs.addEventListener('pointerdown', e => {
+  const rect = cvs.getBoundingClientRect(), x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const s = slotAt(x, y);
+  if (s >= 0 && yard[s]) { Object.assign(drag, { active: true, from: s, x, y, id: e.pointerId }); try { cvs.setPointerCapture(e.pointerId); } catch (err) {} return; }
+  const b = blockAt(x, y);
+  if (b) {
+    const tap = Math.max(1, totalDps() * 0.15);
+    damage(b[0], b[1], tap);
+    texts.push({ x, y: y - 10, txt: '-' + fmt(tap), col: '#ffffff', t: 0.3 });
+  }
+});
+cvs.addEventListener('pointermove', e => {
+  if (!drag.active || e.pointerId !== drag.id) return;
+  const rect = cvs.getBoundingClientRect(); drag.x = e.clientX - rect.left; drag.y = e.clientY - rect.top;
+});
+function endDrag(e) {
+  if (!drag.active || e.pointerId !== drag.id) return;
+  const to = slotAt(drag.x, drag.y);
+  if (to >= 0) merge(drag.from, to);
+  drag.active = false; drag.from = -1;
+}
+cvs.addEventListener('pointerup', endDrag);
+cvs.addEventListener('pointercancel', () => { drag.active = false; drag.from = -1; });
+
+/* ---------- saving & idle earnings ---------- */
+let saveRef = null, localAt = 0, lastCloud = 0;
+function data() {
+  return { v: 1, coins, gems, potions, floor, best, buys, chests, yard: [...yard],
+    blocks: blocks.map(row => row.map(b => [b.l, b.kind, Math.max(0, Math.round(b.hp * 100) / 100), b.max])), lastSeen: Date.now(), savedAt: Date.now() };
+}
+function apply(d) {
+  if (!d || typeof d.floor !== 'number') return false;
+  coins = +d.coins || 0; gems = +d.gems || 0; potions = +d.potions || 0; floor = d.floor; best = d.best || 1; buys = d.buys || 0; chests = d.chests || 0;
+  yard = Array.isArray(d.yard) && d.yard.length === SLOTS ? d.yard.map(x => +x || 0) : yard;
+  if (Array.isArray(d.blocks) && d.blocks.length === ROWS) blocks = d.blocks.map(row => row.map(([l, kind, hp, max]) => ({ l, kind, hp, max, fl: 0 })));
+  else makeFloor();
+  lastSeen = d.lastSeen || Date.now();
+  return true;
+}
+function save() {
+  const d = data();
+  try { localStorage.setItem('zm-save', JSON.stringify(d)); localAt = d.savedAt; } catch (e) {}
+  if (saveRef && Date.now() - lastCloud > 15000) { lastCloud = Date.now(); saveRef.set(d).catch(() => {}); }
+}
+// coins your zombies dug while the game was closed, at a third of the live rate, up to 4 hours
+function awayEarnings() {
+  const secs = Math.min(4 * 3600, (Date.now() - lastSeen) / 1000);
+  if (secs < 60) return;
+  const perHp = blockCoins(floor + 3) / blockHp(floor + 3);
+  const got = totalDps() * secs * perHp / 3;
+  if (got < 1) return;
+  coins += got;
+  $('zmAwayText').textContent = `Your zombies dug for ${secs >= 3600 ? (secs / 3600).toFixed(1) + ' hours' : Math.round(secs / 60) + ' minutes'} and found ${fmt(got)} coins.`;
+  $('zmAway').hidden = false;
+}
+async function connectCloud() {
+  const c = window.claude; if (!c || !c.use) return;
+  const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
+  const id = user ? await user.id() : null;
+  if (!db || !id) return;
+  const ref = db.doc(`data/users/${id}/zombieminer`);
+  try {
+    const snap = await ref.get(), remote = snap.exists ? snap.data() : null;
+    if (remote && remote.savedAt > localAt) { apply(remote); localAt = remote.savedAt; }
+    else if (!remote || localAt > remote.savedAt) await ref.set(data());
+    saveRef = ref;
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden && active) { lastCloud = 0; save(); } });
+
+/* ---------- loop & entry ---------- */
+let active = false, lastTs = 0, saveT = 0;
+function frame(ts) {
+  const dt = Math.min(0.1, Math.max(0, (ts - lastTs) / 1000)); lastTs = ts;
+  if (active && !document.hidden && W) {
+    update(dt); draw();
+    if ((hudT -= dt) <= 0) { hudT = 0.2; updateHud(); }
+    if ((saveT += dt) > 5) { saveT = 0; save(); }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
+
+function enter() {
+  active = true; cvs.hidden = false; $('zmHud').hidden = false; $('zmBar').hidden = false;
+  resize(); awayEarnings(); updateHud();
+}
+function leave() {
+  if (active) save();
+  active = false; cvs.hidden = true; $('zmHud').hidden = true; $('zmBar').hidden = true; $('zmAway').hidden = true;
+}
+try { if (!apply(JSON.parse(localStorage.getItem('zm-save') || 'null'))) { makeFloor(); yard[5] = 1; yard[7] = 1; } else localAt = JSON.parse(localStorage.getItem('zm-save')).savedAt || 0; }
+catch (e) { makeFloor(); yard[5] = 1; yard[7] = 1; }
+connectCloud();
+const hubLabel = () => { const el = $('hubZM'); if (el) el.textContent = floor > 1 ? `Mine ${floor}` : 'New'; };
+hubLabel();
+window.zm = { enter, leave, label: hubLabel };
+// test hooks
+window.__zm = {
+  tick: (dt) => update(dt), buy, boost, merge, gemChest,
+  get: () => ({ coins, gems, potions, floor, best, buys, chests, yard: [...yard], dps: totalDps(), cost: buyCost(), left: blocks.flat().filter(b => b.hp > 0).length }),
+  reset: () => { coins = 20; gems = 0; potions = 1; floor = 1; best = 1; buys = 0; chests = 0; boostT = 0; yard = new Array(SLOTS).fill(0); yard[5] = 1; yard[7] = 1; makeFloor(); },
+};
+})();
+</script>
+<script>
 /* ---------- game picker ---------- */
 (() => {
   const $ = id => document.getElementById(id);
@@ -3138,6 +3634,7 @@ window.__lr = {
   window.showHub = () => {
     window.activeGame = 'hub';
     if (window.lr) window.lr.leave();
+    if (window.zm) { window.zm.leave(); window.zm.label(); }
     if (window.hh) window.hh.leave();
     refreshHub();
     $('hub').hidden = false;
@@ -3146,7 +3643,7 @@ window.__lr = {
     const g = b.dataset.game;
     $('hub').hidden = true;
     window.activeGame = g;
-    if (g === 'hh') window.hh.enter(); else window.lr.enter();
+    if (g === 'hh') window.hh.enter(); else if (g === 'zm') window.zm.enter(); else window.lr.enter();
   });
   refreshHub();
 })();
