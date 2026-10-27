@@ -31,8 +31,9 @@ controls, safe-area insets, home-screen mode). It also works on desktop
   - **TANK**: a tank drives in front of the squad, shells the horde and takes the bites
     until its armour runs out. Up to 1 tank on levels 1–5, 2 on levels 6–10 and 3 from
     level 11; extra tank crates repair and upgrade the weakest one.
-  - **HELI**: a helicopter flies cover and fires rockets until it is shot down.
-    More heli crates repair and upgrade it.
+  - **HELI**: a helicopter flies cover and fires rockets until it is shot down. Same limits
+    as tanks (1 / 2 / 3 by level), flying in formation; extra heli crates repair and
+    upgrade the weakest one.
   - **SHIELD**: no bites for 6 seconds. **FREEZE**: all zombies nearly stop for 4 seconds.
   - **COINS**: coins for upgrades. **NUKE** (rare): kills every zombie in view and hurts the boss.
 - **Spitters** (green, from level 5) lob acid at the helicopter, or at the squad if there
