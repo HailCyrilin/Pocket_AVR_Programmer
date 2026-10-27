@@ -1223,7 +1223,7 @@ function updateMission(dt, R) {
       const z = sv.zAbs - dist;
       if (z < R * 0.7 + 0.6 && z > -1.5 && Math.abs(sv.x - px) < R + 0.6) {
         sv.state = 'saved'; rescued++; N += 3; countPop = 1; sfx.gate(true);
-        floatText(`SAVED ${rescued}/${RESCUE_NEED}`, '#7fffb0', 24);
+        floatText(rescued === RESCUE_NEED ? 'GOAL REACHED' : rescued < RESCUE_NEED ? `SAVED ${rescued}/${RESCUE_NEED}` : `SAVED ${rescued}`, '#7fffb0', 24);
         continue;
       }
       if (z < -3) { sv.state = 'lost'; lostSurv++; continue; }
@@ -1867,7 +1867,7 @@ function updateBuffs() {
   const list = [];
   if (ms('chopper') && vip) list.push(['mission', 'Chopper', `${Math.max(0, Math.round(vip.hp / vip.max * 100))}%`]);
   if (ms('hold')) list.push(['mission', 'Hold', bossPhase ? 'Boss!' : `${Math.ceil(HOLD_TIME - holdT)}s`]);
-  if (ms('rescue')) list.push(['mission', 'Saved', `${rescued}/${RESCUE_NEED}`]);
+  if (ms('rescue')) list.push(['mission', 'Saved', rescued >= RESCUE_NEED ? `${rescued} ✓` : `${rescued}/${RESCUE_NEED}`]);
   list.push(['gun', WEAPONS[weapon].name, '']);
   if (fireLvl > 1) list.push(['gun', 'Fire rate', `+${(fireLvl - 1) * 30}%`]);
   for (const p of PERKS) {
