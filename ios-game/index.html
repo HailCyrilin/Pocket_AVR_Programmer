@@ -42,6 +42,7 @@ body{
   overscroll-behavior:none;-webkit-tap-highlight-color:transparent;
 }
 #game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--night)}
+.night-fx{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 65%,rgba(10,8,30,0) 35%,rgba(10,8,30,.55) 100%)}
 
 #hud{
   position:fixed;inset:0 0 auto;pointer-events:none;display:grid;gap:8px;
@@ -110,6 +111,16 @@ body{
 .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #a9851a}
 .best{font-size:15px!important;letter-spacing:.06em;text-transform:uppercase}
 .tag.drop{background:var(--epic)}
+.banner{
+  position:fixed;left:50%;top:32%;transform:translate(-50%,-50%);display:grid;gap:6px;justify-items:center;
+  padding:14px 22px;border-radius:12px;background:var(--panel);pointer-events:none;text-align:center;
+  width:max-content;max-width:calc(100% - 32px);
+}
+.banner b{font:400 28px/1 var(--display);color:var(--ink)}
+.banner span{font-weight:600;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:var(--hazard)}
+.banner.show{animation:bannerIn 3.2s ease forwards}
+@keyframes bannerIn{0%{opacity:0;transform:translate(-50%,-40%)}10%,75%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(-50%,-55%)}}
+@media (prefers-reduced-motion:reduce){.banner.show{animation:none}}
 .buffs{display:grid;gap:4px;justify-self:start;justify-items:start;max-width:48%}
 .buff{
   display:flex;align-items:center;gap:6px;padding:4px 8px 4px 6px;border-radius:6px;
@@ -146,6 +157,7 @@ body{
 </style>
 
 <canvas id="game" aria-label="Horde Highway game"></canvas>
+<div id="nightFx" class="night-fx" hidden></div>
 
 <div id="hud" hidden>
   <div class="hud-row">
@@ -202,6 +214,8 @@ body{
     <button id="btnRetry" class="btn" type="button">Try again</button>
   </div>
 </div>
+
+<div id="banner" class="banner" hidden aria-live="polite"><b id="bnTheme"></b><span id="bnTwist"></span></div>
 
 <div id="ovPick" class="ov" hidden>
   <div class="card">
@@ -542,11 +556,11 @@ function makeZombie(type, x, zAbs) {
 }
 function makeWave(pos, big) {
   const frac = pos / L;
-  let n = Math.round((18 + D() * 7) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
+  let n = Math.round((18 + D() * 7) * (0.5 + frac * 1.3) * (big ? 2.2 : 1) * (tw('mega') && pos >= 70 ? 1.7 : 1));
   n = Math.min(pos < 70 ? 6 + D() : 200, n);
   const depth = 3 + n * 0.05;
-  const pSpit = level >= 5 && pos >= 70 ? Math.min(0.035, 0.006 * D()) : 0;
-  const pBrute = pos < 70 ? 0 : Math.min(0.16, 0.03 * D()), pRunner = Math.min(0.3, 0.1 + 0.03 * D());
+  const pSpit = level >= 5 && pos >= 70 ? Math.min(0.035, 0.006 * D()) * (tw('spitters') ? 3 : 1) : 0;
+  const pBrute = pos < 70 ? 0 : Math.min(0.16, 0.03 * D()) * (tw('brutes') ? 2.2 : 1), pRunner = Math.min(0.3, 0.1 + 0.03 * D()) + (tw('runners') ? 0.3 : 0);
   for (let j = 0; j < n; j++) {
     const r = Math.random();
     const type = r < pBrute ? 'brute' : r < pBrute + pSpit ? 'spitter' : r < pBrute + pSpit + pRunner ? 'runner' : 'walker';
@@ -580,7 +594,22 @@ function makeCrate(zAbs) {
   crates.push({ kind, gun, troops, label, x: rnd(-3.3, 3.3), zAbs, hp, max: hp, fl: 0, dead: false });
 }
 
+// each level from 2 on rolls one twist that changes what the road throws at you
+const TWISTS = [
+  { id: 'runners',  name: 'Runner rush',   desc: 'Fast zombies everywhere' },
+  { id: 'brutes',   name: 'Brute convoy',  desc: 'Brutes march with every horde' },
+  { id: 'spitters', name: 'Spitter nest',  desc: 'Protect your helicopter', min: 5 },
+  { id: 'supply',   name: 'Supply run',    desc: 'Extra crates on the road' },
+  { id: 'gates',    name: 'Gate gauntlet', desc: 'Gates on every stretch' },
+  { id: 'mega',     name: 'Mega horde',    desc: 'Fewer waves, much bigger' },
+];
+let twist = null;
+const tw = id => twist && twist.id === id;
+
 function startLevel() {
+  TH = THEMES[(level - 1) % THEMES.length];
+  $('nightFx').hidden = !TH.night;
+  twist = level >= 2 ? pick(TWISTS.filter(x => !x.min || level >= x.min)) : null;
   dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3 + 2 * meta.squad; px = 0; targetPx = 0; camX = 0; kills = 0;
   fireLvl = 1; weapon = 'rifle'; tanks = []; heli = null; spits = [];
   perks = {}; dropNo = 0; drops = [L * 0.34, L * 0.68]; pendingBooms = []; shieldT = 0; freezeT = 0; flashT = 0;
@@ -588,12 +617,13 @@ function startLevel() {
   boss = null; bossPhase = false; endTimer = 0; fireAcc = 0; shake = 0; hurt = 0;
   let pos = 40, i = 0;
   while (pos < L - 22) {
-    if (i % 3 === 1) makeGates(pos);
+    if (i % (tw('gates') ? 2 : 3) === 1) makeGates(pos);
     else {
       makeWave(pos, pos > L - 60);
-      if (i > 0 && Math.random() < 0.7) makeCrate(pos - rnd(6, 9));
+      if (i > 0 && Math.random() < (tw('supply') ? 1 : 0.7)) makeCrate(pos - rnd(6, 9));
+      if (i > 0 && tw('supply') && Math.random() < 0.6) makeCrate(pos - rnd(14, 18));
     }
-    pos += rnd(26, 34); i++;
+    pos += tw('mega') ? rnd(40, 48) : rnd(26, 34); i++;
   }
 }
 
@@ -1111,73 +1141,240 @@ function quad(a, b, c, d, fill) {
   ctx.closePath(); ctx.fill();
 }
 
-function drawWorld() {
-  // desert
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#d9b47a'); sky.addColorStop(0.5, '#c79d62'); sky.addColorStop(1, '#b38750');
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-  const hy = CY - FOC * Math.tan(PITCH) + shakeY;
-  if (hy > 0) {
-    const sk = ctx.createLinearGradient(0, 0, 0, hy);
-    sk.addColorStop(0, '#6f86a8'); sk.addColorStop(0.7, '#d8b98e'); sk.addColorStop(1, '#f1cf96');
-    ctx.fillStyle = sk; ctx.fillRect(0, 0, W, hy + 1);
-  }
+/* ---------- level themes: each level gets the next one in turn ---------- */
+const THEMES = [
+  { name: 'Desert Highway', sky: ['#6f86a8', '#d8b98e', '#f1cf96'], ground: ['#d9b47a', '#c79d62', '#b38750'], band: 'rgba(120,80,30,.07)',
+    haze: '241,207,150', road: '#2f2d31', line: 'rgba(242,194,48,.55)', edge: 'concrete', decor: 'desert', weather: null },
+  { name: 'Frozen Pass', sky: ['#8fa9c9', '#d6e2ee', '#eef3f8'], ground: ['#eef3f8', '#dfe8f0', '#cbd8e4'], band: 'rgba(110,140,180,.08)',
+    haze: '236,242,248', road: '#3b4049', line: 'rgba(255,255,255,.6)', edge: 'snow', decor: 'pines', weather: 'snow' },
+  { name: 'Forest Road', sky: ['#7fa7c9', '#c9dcc0', '#e3ecd0'], ground: ['#6f8f45', '#5e7c3a', '#4d6a2f'], band: 'rgba(30,50,10,.09)',
+    haze: '214,226,196', road: '#35363b', line: 'rgba(255,255,255,.6)', edge: 'rail', decor: 'forest', weather: null },
+  { name: 'Neon City', sky: ['#0e1024', '#2a2350', '#4b3566'], ground: ['#3a3a44', '#2e2e37', '#26262e'], band: 'rgba(0,0,0,.12)',
+    haze: '58,46,88', road: '#202027', line: 'rgba(255,255,255,.55)', edge: 'curb', decor: 'city', weather: 'rain', night: true },
+  { name: 'Ash Wastes', sky: ['#2a1414', '#7a2e1a', '#c4552a'], ground: ['#4a3f3a', '#3d3430', '#2f2826'], band: 'rgba(0,0,0,.1)',
+    haze: '150,70,40', road: '#272326', line: 'rgba(255,140,60,.45)', edge: 'rock', decor: 'ash', weather: 'embers' },
+];
+let TH = THEMES[0];
 
-  // scrolling sand bands
-  const band = 7, off = dist % band;
-  for (let z = FAR - off; z > NEAR; z -= band) {
-    quad(proj(-40, 0, z), proj(40, 0, z), proj(40, 0, z - band / 2), proj(-40, 0, z - band / 2), 'rgba(120,80,30,.07)');
+function vgrad(y0, y1, cols) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  cols.forEach((c, i) => g.addColorStop(i / (cols.length - 1), c));
+  return g;
+}
+function poly(pts, fill) {
+  if (pts.some(p => !p)) return;
+  ctx.fillStyle = fill; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath(); ctx.fill();
+}
+
+// one roadside object; h1..h4 are stable per-cell random numbers
+function drawDecor(x, z, side, h1, h2, h3) {
+  const p = proj(x, 0, z); if (!p) return;
+  const k = p[2];
+  if (TH.decor === 'desert') {
+    const s = (0.25 + h3 * 0.5) * k;
+    if (h1 < 0.2) {
+      ctx.fillStyle = '#6b5a3c'; ctx.beginPath(); ctx.ellipse(p[0], p[1] - s * 0.3, s, s * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8b7752'; ctx.beginPath(); ctx.ellipse(p[0] - s * 0.2, p[1] - s * 0.45, s * 0.6, s * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#7a7340'; ctx.beginPath(); ctx.arc(p[0], p[1] - s * 0.4, s * 0.7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5f5a30'; ctx.beginPath(); ctx.arc(p[0] + s * 0.4, p[1] - s * 0.3, s * 0.5, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (TH.decor === 'pines') {
+    if (h1 < 0.15) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(p[0], p[1], 0.9 * k, 0.35 * k, 0, Math.PI, 0); ctx.fill(); return; }
+    const hgt = (3 + h3 * 3.5) * k, w = hgt * 0.42;
+    ctx.fillStyle = '#4a3526'; ctx.fillRect(p[0] - 0.08 * k, p[1] - hgt * 0.22, 0.16 * k, hgt * 0.22);
+    for (let i = 0; i < 3; i++) {
+      const top = p[1] - hgt * (0.45 + i * 0.27), bot = p[1] - hgt * (0.12 + i * 0.25), ww = w * (1 - i * 0.25);
+      ctx.fillStyle = i % 2 ? '#2b5440' : '#244a38';
+      ctx.beginPath(); ctx.moveTo(p[0], top); ctx.lineTo(p[0] + ww / 2, bot); ctx.lineTo(p[0] - ww / 2, bot); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#f4f8fb';
+      ctx.beginPath(); ctx.moveTo(p[0], top); ctx.lineTo(p[0] + ww * 0.16, top + (bot - top) * 0.32); ctx.lineTo(p[0] - ww * 0.16, top + (bot - top) * 0.32); ctx.closePath(); ctx.fill();
+    }
+  } else if (TH.decor === 'forest') {
+    if (h1 < 0.18) {
+      const s = (0.4 + h3 * 0.4) * k;
+      ctx.fillStyle = '#3f5f2a'; ctx.beginPath(); ctx.arc(p[0], p[1] - s * 0.5, s, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4f7333'; ctx.beginPath(); ctx.arc(p[0] - s * 0.3, p[1] - s * 0.7, s * 0.6, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+    const hgt = (3.5 + h3 * 3) * k, r = hgt * 0.28;
+    ctx.fillStyle = '#5a4130'; ctx.fillRect(p[0] - 0.12 * k, p[1] - hgt * 0.55, 0.24 * k, hgt * 0.55);
+    const greens = h2 < 0.5 ? ['#3e6b2e', '#4d7f36', '#5e9440'] : ['#55702a', '#68873a', '#7c9c45'];
+    ctx.fillStyle = greens[0]; ctx.beginPath(); ctx.arc(p[0], p[1] - hgt * 0.7, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = greens[1]; ctx.beginPath(); ctx.arc(p[0] - r * 0.45, p[1] - hgt * 0.78, r * 0.75, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = greens[2]; ctx.beginPath(); ctx.arc(p[0] + r * 0.3, p[1] - hgt * 0.9, r * 0.6, 0, Math.PI * 2); ctx.fill();
+  } else if (TH.decor === 'city') {
+    // a block of flats: side wall facing the road, then the front face with windows
+    const xin = x, xout = x + side * (3 + h2 * 2.5), dep = 2.6, hgt = 5 + h3 * 11;
+    poly([proj(xin, 0, z), proj(xin, 0, z + dep), proj(xin, hgt, z + dep), proj(xin, hgt, z)], h2 < 0.5 ? '#2c2a3c' : '#33293a');
+    const a = proj(xin, 0, z), b = proj(xout, 0, z), c = proj(xout, hgt, z), d = proj(xin, hgt, z);
+    poly([a, b, c, d], h2 < 0.5 ? '#3b3852' : '#47364d');
+    if (!a || !c || z > 85) return;
+    const l = Math.min(a[0], b[0]), r = Math.max(a[0], b[0]), top = Math.min(c[1], d[1]), bot = a[1];
+    const cols = 3, rows = Math.max(2, Math.floor(hgt / 1.6)), cw = (r - l) / cols, rh = (bot - top) / rows;
+    for (let i = 0; i < rows - 1; i++) for (let j = 0; j < cols; j++) {
+      const lit = hash(h1 * 97 + i * 13.1 + j * 7.7) > 0.45;
+      ctx.fillStyle = lit ? (hash(i + j + h2 * 31) > 0.3 ? '#ffd27a' : '#7fd0ff') : '#1c1b28';
+      ctx.fillRect(l + cw * (j + 0.25), top + rh * (i + 0.3), cw * 0.5, rh * 0.45);
+    }
+  } else {
+    if (h1 < 0.3) {
+      const s = (0.3 + h3 * 0.6) * k;
+      ctx.fillStyle = '#2a2220'; ctx.beginPath(); ctx.ellipse(p[0], p[1] - s * 0.3, s, s * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3d322d'; ctx.beginPath(); ctx.ellipse(p[0] - s * 0.25, p[1] - s * 0.45, s * 0.55, s * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+    // dead tree
+    const hgt = (2.5 + h3 * 2.5) * k;
+    ctx.strokeStyle = '#1e1715'; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(1.5, 0.18 * k);
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0], p[1] - hgt);
+    for (const [f, dx] of [[0.55, -0.35], [0.7, 0.3], [0.85, -0.2]]) {
+      ctx.moveTo(p[0], p[1] - hgt * f); ctx.lineTo(p[0] + dx * hgt, p[1] - hgt * (f + 0.18));
+    }
+    ctx.stroke();
   }
-  // rocks and scrub
-  const cell = 3, c0 = Math.floor((dist + NEAR) / cell), c1 = Math.floor((dist + FAR) / cell);
-  for (let c = c1; c >= c0; c--) {
+}
+
+// lamp glow rendered once, then stamped
+const GLOW = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gl = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gl.addColorStop(0, 'rgba(255,214,140,.55)'); gl.addColorStop(1, 'rgba(255,170,80,0)');
+  g.fillStyle = gl; g.fillRect(0, 0, 64, 64); return c;
+})();
+
+function drawEdges() {
+  const seg = 2.5, wo = dist % seg;
+  for (let z = FAR - wo; z > NEAR; z -= seg) {
+    const odd = Math.round((z + dist) / seg) % 2 === 0, z2 = z - seg;
     for (const side of [-1, 1]) {
-      const h1 = hash(c * 2 + (side > 0 ? 1 : 0));
-      if (h1 > 0.55) continue;
-      const x = side * (ROAD + 1.6 + hash(c * 7.3 + side) * 11), z = c * cell + hash(c * 3.1 + side) * cell - dist;
-      const p = proj(x, 0, z); if (!p) continue;
-      const s = (0.25 + hash(c * 9.7 + side) * 0.5) * p[2];
-      if (h1 < 0.2) {
-        ctx.fillStyle = '#6b5a3c'; ctx.beginPath(); ctx.ellipse(p[0], p[1] - s * 0.3, s, s * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#8b7752'; ctx.beginPath(); ctx.ellipse(p[0] - s * 0.2, p[1] - s * 0.45, s * 0.6, s * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+      const x = side * ROAD;
+      if (TH.edge === 'concrete') {
+        const x2 = side * (ROAD + 0.6);
+        quad(proj(x, 0, z), proj(x, 0, z2), proj(x, 0.9, z2), proj(x, 0.9, z), odd ? '#8d8983' : '#827e78');
+        quad(proj(x, 0.9, z), proj(x, 0.9, z2), proj(x2, 0.9, z2), proj(x2, 0.9, z), '#b8b3a9');
+        quad(proj(x, 0, z), proj(x, 0, z2), proj(x, 0.18, z2), proj(x, 0.18, z), odd ? '#f2c230' : '#1d1b1f');
+      } else if (TH.edge === 'snow') {
+        const x2 = side * (ROAD + 1.4);
+        quad(proj(x, 0, z), proj(x, 0, z2), proj(x2, 0.8, z2), proj(x2, 0.8, z), odd ? '#e4ecf3' : '#dbe5ee');
+        quad(proj(x, 0, z), proj(x, 0, z2), proj(x, 0.12, z2), proj(x, 0.12, z), '#a9b9c9');
+      } else if (TH.edge === 'rail') {
+        const xr = side * (ROAD + 0.2);
+        quad(proj(xr, 0, z), proj(xr, 0, z - 0.15), proj(xr, 0.85, z - 0.15), proj(xr, 0.85, z), '#5a5f66');
+        quad(proj(xr, 0.5, z), proj(xr, 0.5, z2), proj(xr, 0.8, z2), proj(xr, 0.8, z), odd ? '#b6bbc2' : '#a9aeb5');
+      } else if (TH.edge === 'curb') {
+        const x2 = side * (ROAD + 1.6);
+        quad(proj(x, 0, z), proj(x, 0, z2), proj(x, 0.22, z2), proj(x, 0.22, z), '#8a8a96');
+        quad(proj(x, 0.22, z), proj(x, 0.22, z2), proj(x2, 0.22, z2), proj(x2, 0.22, z), odd ? '#55556a' : '#4d4d60');
       } else {
-        ctx.fillStyle = '#7a7340'; ctx.beginPath(); ctx.arc(p[0], p[1] - s * 0.4, s * 0.7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#5f5a30'; ctx.beginPath(); ctx.arc(p[0] + s * 0.4, p[1] - s * 0.3, s * 0.5, 0, Math.PI * 2); ctx.fill();
+        const x2 = side * (ROAD + 1);
+        quad(proj(x, 0, z), proj(x, 0, z2), proj(x + side * 0.3, 0.7, z2), proj(x + side * 0.3, 0.7, z), odd ? '#3a302c' : '#33292a');
+        quad(proj(x + side * 0.3, 0.7, z), proj(x + side * 0.3, 0.7, z2), proj(x2, 0.6, z2), proj(x2, 0.6, z), '#4d403a');
+        quad(proj(x, 0, z), proj(x, 0, z2), proj(x, 0.08, z2), proj(x, 0.08, z), 'rgba(255,110,40,.7)');
       }
     }
   }
+  // street lamps in the city
+  if (TH.edge === 'curb') {
+    const gap = 12, lo = dist % gap;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let z = Math.min(FAR, 140) - lo; z > NEAR + 2; z -= gap) {
+      for (const side of [-1, 1]) {
+        const b = proj(side * (ROAD + 0.8), 0, z), tp = proj(side * (ROAD + 0.8), 4.2, z), hd = proj(side * (ROAD - 0.3), 4.1, z);
+        if (!b || !tp || !hd) continue;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = '#15151c'; ctx.lineWidth = Math.max(1, 0.12 * b[2]);
+        ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(tp[0], tp[1]); ctx.lineTo(hd[0], hd[1]); ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        const r = 2.4 * hd[2];
+        ctx.drawImage(GLOW, hd[0] - r, hd[1] - r, r * 2, r * 2);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+}
 
-  // asphalt
-  quad(proj(-ROAD - 0.4, 0, NEAR), proj(ROAD + 0.4, 0, NEAR), proj(ROAD + 0.4, 0, FAR), proj(-ROAD - 0.4, 0, FAR), '#2f2d31');
-  // patches & seams
+function drawWorld() {
+  ctx.fillStyle = vgrad(0, H, TH.ground); ctx.fillRect(0, 0, W, H);
+  const hy = CY - FOC * Math.tan(PITCH) + shakeY;
+  if (hy > 0) { ctx.fillStyle = vgrad(0, hy, TH.sky); ctx.fillRect(0, 0, W, hy + 1); }
+  if (TH.night && hy > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    for (let i = 0; i < 40; i++) ctx.fillRect(hash(i * 3.7) * W, hash(i * 9.1) * hy * 0.8, 1.5, 1.5);
+  }
+
+  // scrolling ground bands, lava cracks in the ash wastes
+  const band = 7, off = dist % band;
+  for (let z = FAR - off; z > NEAR; z -= band) {
+    quad(proj(-40, 0, z), proj(40, 0, z), proj(40, 0, z - band / 2), proj(-40, 0, z - band / 2), TH.band);
+    if (TH.decor === 'ash') {
+      const n = Math.round((z + dist) / band);
+      for (const side of [-1, 1]) {
+        const cx = side * (ROAD + 2 + hash(n * 5.3 + side) * 9), cz = z - hash(n * 2.1 + side) * band;
+        quad(proj(cx - 1.2, 0, cz), proj(cx + 0.4, 0, cz + 0.2), proj(cx + 1.3, 0, cz - 0.1), proj(cx - 0.3, 0, cz - 0.3), 'rgba(255,110,40,.55)');
+      }
+    }
+  }
+  // roadside scenery, far to near
+  const cell = TH.decor === 'city' ? 4 : 3, c0 = Math.floor((dist + NEAR) / cell), c1 = Math.floor((dist + FAR) / cell);
+  const density = { desert: 0.55, pines: 0.75, forest: 0.8, city: 0.9, ash: 0.5 }[TH.decor];
+  for (let c = c1; c >= c0; c--) {
+    for (const side of [-1, 1]) {
+      const h1 = hash(c * 2 + (side > 0 ? 1 : 0));
+      if (h1 > density) continue;
+      const near = TH.decor === 'city' ? 2.2 : 1.6, spread = TH.decor === 'city' ? 2 : 11;
+      const x = side * (ROAD + near + hash(c * 7.3 + side) * spread), z = c * cell + hash(c * 3.1 + side) * (TH.decor === 'city' ? 0.5 : cell) - dist;
+      drawDecor(x, z, side, h1, hash(c * 5.9 + side), hash(c * 9.7 + side));
+    }
+  }
+
+  // road surface
+  quad(proj(-ROAD - 0.4, 0, NEAR), proj(ROAD + 0.4, 0, NEAR), proj(ROAD + 0.4, 0, FAR), proj(-ROAD - 0.4, 0, FAR), TH.road);
   const seam = 9, so = dist % seam;
   for (let z = FAR - so; z > NEAR; z -= seam) {
     quad(proj(-ROAD, 0, z), proj(ROAD, 0, z), proj(ROAD, 0, z - 0.12), proj(-ROAD, 0, z - 0.12), 'rgba(0,0,0,.35)');
     const pz = Math.round((z + dist) / seam);
     const hx = (hash(pz) - 0.5) * 6, hw = 0.8 + hash(pz * 1.7) * 1.4;
-    quad(proj(hx - hw, 0, z - 2), proj(hx + hw, 0, z - 2), proj(hx + hw * 0.8, 0, z - 4.5), proj(hx - hw * 1.1, 0, z - 4.5), 'rgba(255,255,255,.035)');
+    quad(proj(hx - hw, 0, z - 2), proj(hx + hw, 0, z - 2), proj(hx + hw * 0.8, 0, z - 4.5), proj(hx - hw * 1.1, 0, z - 4.5), TH.decor === 'pines' ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.035)');
   }
-  // centre dashes
   const dash = 4, dOff = dist % dash;
   for (let z = FAR - dOff; z > NEAR; z -= dash) {
-    quad(proj(-0.07, 0, z), proj(0.07, 0, z), proj(0.07, 0, z - 1.8), proj(-0.07, 0, z - 1.8), 'rgba(242,194,48,.55)');
+    quad(proj(-0.07, 0, z), proj(0.07, 0, z), proj(0.07, 0, z - 1.8), proj(-0.07, 0, z - 1.8), TH.line);
   }
-  // decals
   for (const d of decals) {
     const p = proj(d.x, 0, d.zAbs - dist); if (!p) continue;
     ctx.fillStyle = d.scorch ? 'rgba(20,18,16,.5)' : 'rgba(92,14,12,.55)';
     ctx.beginPath(); ctx.ellipse(p[0], p[1], d.s * p[2], d.s * p[2] * 0.5, d.rot, 0, Math.PI * 2); ctx.fill();
   }
-  // concrete barriers
-  const seg = 2.5, wo = dist % seg;
-  for (let z = FAR - wo; z > NEAR; z -= seg) {
-    const odd = Math.round((z + dist) / seg) % 2 === 0;
-    for (const side of [-1, 1]) {
-      const x = side * ROAD, x2 = side * (ROAD + 0.6), z2 = z - seg;
-      quad(proj(x, 0, z), proj(x, 0, z2), proj(x, 0.9, z2), proj(x, 0.9, z), odd ? '#8d8983' : '#827e78');
-      quad(proj(x, 0.9, z), proj(x, 0.9, z2), proj(x2, 0.9, z2), proj(x2, 0.9, z), '#b8b3a9');
-      quad(proj(x, 0, z), proj(x, 0, z2), proj(x, 0.18, z2), proj(x, 0.18, z), odd ? '#f2c230' : '#1d1b1f');
-    }
+  drawEdges();
+}
+
+// screen-space weather: snow, rain or rising embers
+const wx = [];
+let wxKind = null, wxT = 0;
+function drawWeather() {
+  const dt = clamp(t - wxT, 0, 0.05); wxT = t;
+  if (wxKind !== TH.weather) {
+    wxKind = TH.weather; wx.length = 0;
+    if (wxKind) for (let i = 0; i < 90; i++) wx.push({ x: Math.random() * W, y: Math.random() * H, s: rnd(0.6, 1.4), ph: Math.random() * 6 });
+  }
+  if (!wxKind) return;
+  for (const f of wx) {
+    if (wxKind === 'snow') { f.y += 40 * f.s * dt; f.x += Math.sin(t + f.ph) * 12 * dt; }
+    else if (wxKind === 'rain') { f.y += 700 * f.s * dt; f.x -= 120 * dt; }
+    else { f.y -= 35 * f.s * dt; f.x += Math.sin(t * 2 + f.ph) * 15 * dt; }
+    if (f.y > H) { f.y = -5; f.x = Math.random() * W; } else if (f.y < -5) { f.y = H; f.x = Math.random() * W; }
+    if (f.x < -10) f.x += W + 20; else if (f.x > W + 10) f.x -= W + 20;
+  }
+  if (wxKind === 'rain') {
+    ctx.strokeStyle = 'rgba(180,200,255,.35)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (const f of wx) { ctx.moveTo(f.x, f.y); ctx.lineTo(f.x + 3, f.y - 14 * f.s); }
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = wxKind === 'snow' ? 'rgba(255,255,255,.85)' : 'rgba(255,140,60,.8)';
+    for (const f of wx) { const r = (wxKind === 'snow' ? 2 : 1.4) * f.s; ctx.fillRect(f.x - r / 2, f.y - r / 2, r, r); }
   }
 }
 
@@ -1423,11 +1620,12 @@ function draw() {
     }
   }
   if (heli) drawHeli();
+  drawWeather();
 
   // far haze hides spawn pop-in
   const hy = CY - FOC * Math.tan(PITCH) + shakeY, hb = H * 0.1;
   const hz = ctx.createLinearGradient(0, hy - 4, 0, hy + hb);
-  hz.addColorStop(0, 'rgba(241,207,150,.95)'); hz.addColorStop(0.35, 'rgba(232,198,145,.5)'); hz.addColorStop(1, 'rgba(222,190,138,0)');
+  hz.addColorStop(0, `rgba(${TH.haze},.95)`); hz.addColorStop(0.35, `rgba(${TH.haze},.5)`); hz.addColorStop(1, `rgba(${TH.haze},0)`);
   ctx.fillStyle = hz; ctx.fillRect(0, hy - 4, W, hb + 4);
 
   // squad count badge
@@ -1516,6 +1714,10 @@ function play() {
   showOnly(null);
   $('hud').hidden = false; $('bossBar').hidden = true;
   $('hudLevel').textContent = level;
+  $('bnTheme').textContent = TH.name;
+  $('bnTwist').textContent = twist ? `${twist.name} · ${twist.desc}` : 'Clear the road';
+  const bn = $('banner'); bn.hidden = false; bn.classList.remove('show'); void bn.offsetWidth; bn.classList.add('show');
+  clearTimeout(bn._t); bn._t = setTimeout(() => { bn.hidden = true; }, 3200);
   hudK = -1; updateHud();
 }
 function renderShop() {
@@ -1614,7 +1816,7 @@ function boot(data) {
   requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
 }
 
-window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => choosePerk(i), perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: heli && Math.round(heli.hp), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
+window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => choosePerk(i), perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), theme: () => TH.name + (twist ? ' / ' + twist.id : ''), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: heli && Math.round(heli.hp), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
 window.claude?.hot?.snapshot?.(() => ({ level }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 })();

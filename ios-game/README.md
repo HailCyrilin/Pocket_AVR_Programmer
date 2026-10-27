@@ -47,6 +47,12 @@ controls, safe-area insets, home-screen mode). It also works on desktop
 - **Coins** come from kills and cleared levels. Spend them on the win or lose screen on
   permanent upgrades: Bigger squad, Firepower and Salvage (weaker crate armour).
   Progress is saved in the browser.
+- **Every level looks different.** Five settings rotate: Desert Highway (concrete barriers,
+  rocks), Frozen Pass (snowbanks, pine trees, snowfall), Forest Road (guard rails, trees),
+  Neon City (night, buildings, street lamps, rain) and Ash Wastes (lava cracks, dead trees, embers).
+- **Level twists** from level 2: each level rolls one of Runner rush, Brute convoy,
+  Spitter nest, Supply run (extra crates), Gate gauntlet (more gates) or Mega horde
+  (fewer, bigger waves). A banner names the setting and twist when the level starts.
 - Each level ends with a boss that drops onto the road, calls in more zombies and
   charges the squad. Its health scales with your firepower, so it always reaches you.
 - Levels get longer, hordes bigger, zombies tougher and brutes more common.
