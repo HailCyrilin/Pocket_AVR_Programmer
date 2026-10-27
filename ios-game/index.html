@@ -3228,6 +3228,9 @@ let coins = 20, gems = 0, potions = 1, floor = 1, best = 1, shopLv = 1, buys = 0
 let blocks = [];           // ROWS × COLS; row 0 is the bottom row, nearest the yard
 let yard = new Array(SLOTS).fill(0);   // zombie level per slot, 0 = empty
 let parts = [], texts = [], swing = new Array(SLOTS).fill(0), t = 0, banner = null;
+// zombies below the shop level train themselves up one level every TRAIN seconds, so they never get stuck unmergeable
+const TRAIN = 15;
+let train = new Array(SLOTS).fill(0);
 
 function makeFloor() {
   blocks = [];
@@ -3258,7 +3261,7 @@ function targetFor(col) {
 function freeSlot() { return yard.findIndex(L => !L); }
 function addZombie(L) {
   const i = freeSlot(); if (i < 0) return false;
-  yard[i] = L; setBest(L); return true;
+  yard[i] = L; train[i] = 0; setBest(L); return true;
 }
 function setBest(L) { best = Math.max(best, L); }
 function damage(r, c, dmg) {
@@ -3299,7 +3302,7 @@ function buy() {
   if (coins < cost || slot < 0) return false;
   coins -= cost;
   const L = spawnLevel();
-  yard[slot] = L; setBest(L);
+  yard[slot] = L; train[slot] = 0; setBest(L);
   if (L !== shopLv) { shopLv = L; buys = 0; }      // the shop caught up with (or was held back by) your best zombie
   if (++buys >= BUYS_PER_LEVEL && shopLv < best) { shopLv++; buys = 0; }
   return true;
@@ -3312,6 +3315,7 @@ function gemChest() {
 function merge(a, b) {
   // drop zombie a onto slot b
   if (a === b) return;
+  [train[a], train[b]] = [train[b], train[a]];
   if (!yard[b]) { yard[b] = yard[a]; yard[a] = 0; }
   else if (yard[a] === yard[b]) {
     yard[b]++; yard[a] = 0; setBest(yard[b]);
@@ -3415,6 +3419,12 @@ function update(dt) {
     const tg = targetFor(i % COLS); if (!tg) continue;
     damage(tg[0], tg[1], zDps(L) * mult * dt);
     swing[i] += dt * 7;
+    if (L < spawnLevel() && (train[i] += dt) >= TRAIN) {
+      train[i] = 0; yard[i]++;
+      const [x, y] = slotXY(i);
+      texts.push({ x, y: y - 40, txt: `LV ${yard[i]}`, col: '#8dff9a', t: 0 });
+      for (let k = 0; k < 10; k++) parts.push({ x, y: y - 20, vx: rnd(-1, 1) * 90, vy: rnd(-1.5, -0.3) * 120, life: rnd(0.3, 0.6), c: '#8dff9a', s: rnd(3, 5) });
+    } else if (L >= spawnLevel()) train[i] = 0;
     if (Math.random() < dt * 3) { const [x, y] = blockXY(tg[0], tg[1]); parts.push({ x: x + rnd(-8, 8), y: y + BW * 0.3, vx: rnd(-1, 1) * 70, vy: rnd(-1, 0) * 90, life: 0.4, c: '#bfe0ff', s: 3 }); }
   }
   for (const row of blocks) for (const b of row) { b.fl -= dt; if (b.dy) b.dy = Math.max(0, b.dy - dt * BW * 9); }
@@ -3455,6 +3465,14 @@ function draw() {
     ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, y, BW * 0.36, BW * 0.12, 0, 0, Math.PI * 2); ctx.fill();
     const L = yard[i]; if (!L || (drag.active && drag.from === i)) continue;
     drawZombie(L, x, y, BW, swing[i]);
+    if (L < spawnLevel()) {
+      // training ring and up arrow
+      const cx = x + BW * 0.3, cy = y - BW * 0.85, r = BW * 0.12;
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#8dff9a'; ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * train[i] / TRAIN); ctx.stroke();
+      ctx.fillStyle = '#8dff9a'; ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.6); ctx.lineTo(cx + r * 0.5, cy + r * 0.1); ctx.lineTo(cx - r * 0.5, cy + r * 0.1); ctx.fill();
+      ctx.fillRect(cx - r * 0.18, cy, r * 0.36, r * 0.5);
+    }
   }
   if (drag.active && yard[drag.from]) drawZombie(yard[drag.from], drag.x, drag.y + BW * 0.3, BW * 1.1, 0);
   // effects
@@ -3571,6 +3589,8 @@ function save() {
 function awayEarnings() {
   const secs = Math.min(4 * 3600, (Date.now() - lastSeen) / 1000);
   if (secs < 60) return;
+  // low zombies kept training while you were away
+  for (let i = 0; i < SLOTS; i++) if (yard[i]) yard[i] = Math.max(yard[i], Math.min(spawnLevel(), yard[i] + Math.floor(secs / TRAIN)));
   const perHp = blockCoins(floor + 3) / blockHp(floor + 3);
   const got = totalDps() * secs * perHp / 3;
   if (got < 1) return;

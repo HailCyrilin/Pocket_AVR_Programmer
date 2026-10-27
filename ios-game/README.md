@@ -42,6 +42,9 @@ rocks above it drop down.
 
 - **Merge:** drag a zombie onto another of the same level to make one a level higher, which
   digs a little over twice as fast. Drag onto an empty slot to move it.
+- **Training:** a zombie below the shop's level trains itself up one level every 15 seconds
+  (green ring and arrow) until it reaches the shop's level, so old zombies never get stuck
+  with nothing to merge with. Zombies keep training while the game is closed.
 - **Tap a rock** to help dig.
 - **Buy** a zombie from the shop. After every 8 zombies you buy, the shop moves up a level:
   8 level-1 zombies, then level 2, then level 3, and so on. The button shows the count (e.g.
