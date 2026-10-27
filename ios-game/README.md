@@ -23,6 +23,12 @@ Based on the "Top War" lane ads. You start with one soldier in front of three la
 - **Centre lane**: a red army waits behind a barricade with a countdown. When it reaches
   zero the army charges, followed by its chief.
 
+- **Purple boxes** hold guns (the same 13 as Horde Highway; you choose keep or swap, with
+  stats). Guns with a high crowd rating (rockets, grenades, railgun, tesla, laser) hit the
+  packed army much harder; rifle and SMG are best on boxes.
+- **Steel-blue TANK boxes** add a tank (up to 3) that shells its lane and takes the army's
+  blows first; more tank boxes repair the weakest.
+
 Drag to move; your squad shoots the lane it stands in. Each box down a lane is tougher than
 the last, so choose between quick blue boxes and big gold ones before the timer runs out,
 then hold the centre and wipe out the army and its chief. Each level brings a bigger army.

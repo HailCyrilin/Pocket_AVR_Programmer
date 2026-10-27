@@ -165,21 +165,21 @@ body{
 .perk b{font:400 19px/1.1 var(--display)}
 .perk span{font-size:17px;line-height:1.2;color:var(--muted)}
 .guns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.gun{
+.gun-card{
   display:grid;gap:6px;align-content:start;padding:12px;border-radius:10px;cursor:pointer;text-align:left;
   border:2px solid var(--g);background:rgba(255,255,255,.04);color:var(--ink);font-family:var(--body);min-width:0;
 }
-.gun.cur{--g:var(--common)}.gun.new{--g:var(--hazard)}
-.gun:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
-.gun:active{background:rgba(255,255,255,.1)}
-.gun i{font:400 11px/1 var(--display);font-style:normal;color:var(--night);background:var(--g);padding:4px 6px;border-radius:4px;justify-self:start}
-.gun b{font:400 20px/1 var(--display)}
-.gun p{margin:0;font-size:15px;line-height:1.2;color:var(--muted)}
+.gun-card.cur{--g:var(--common)}.gun-card.new{--g:var(--hazard)}
+.gun-card:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
+.gun-card:active{background:rgba(255,255,255,.1)}
+.gun-card i{font:400 11px/1 var(--display);font-style:normal;color:var(--night);background:var(--g);padding:4px 6px;border-radius:4px;justify-self:start}
+.gun-card b{font:400 20px/1 var(--display)}
+.gun-card p{margin:0;font-size:15px;line-height:1.2;color:var(--muted)}
 .stat{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .pips{display:flex;gap:3px}
 .pips span{width:9px;height:9px;border-radius:2px;background:rgba(255,255,255,.14)}
 .pips span.on{background:var(--g)}
-.gun em{font:400 14px/1 var(--display);font-style:normal;color:var(--g);margin-top:2px}
+.gun-card em{font:400 14px/1 var(--display);font-style:normal;color:var(--g);margin-top:2px}
 .perk.common{--r:var(--common)}.perk.rare{--r:var(--rare)}.perk.epic{--r:var(--epic)}
 .shop{display:grid;gap:8px;padding-top:4px;border-top:1px solid rgba(255,255,255,.12)}
 .shop-head{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -285,6 +285,15 @@ body{
     <div class="chip" id="lrStatus">Breach 20s</div>
     <div class="chip"><span id="lrFoe">0</span><small>enemy</small></div>
   </div>
+  <div id="lrBuffs" class="buffs" aria-label="Weapon and tanks"></div>
+</div>
+
+<div id="lrGun" class="ov" hidden>
+  <div class="card">
+    <p class="eyebrow">Weapon box</p>
+    <h2>Keep or swap?</h2>
+    <div id="lrGunCards" class="guns"></div>
+  </div>
 </div>
 
 <div id="lrTitle" class="ov" hidden>
@@ -294,6 +303,7 @@ body{
     <ul class="rules">
       <li><span class="tag blue">+1</span>Blue boxes break fast and add a few soldiers.</li>
       <li><span class="tag gold">+99</span>Gold boxes take longer but add a crowd. Green ×2 doubles your army.</li>
+      <li><span class="tag drop">GUN</span>Purple boxes hold new guns; steel-blue boxes send a tank.</li>
       <li><span class="tag red">BREACH</span>When the barricade timer runs out, the red army and its chief charge.</li>
     </ul>
     <p>Drag to move. Your squad shoots the lane it stands in.</p>
@@ -1104,7 +1114,7 @@ function gunCard(id, tag, cls) {
   const w = WEAPONS[id], st = GUN_STATS[id];
   const pips = n => `<span class="pips">${[1, 2, 3, 4, 5].map(i => `<span class="${i <= n ? 'on' : ''}"></span>`).join('')}</span>`;
   const b = document.createElement('button');
-  b.type = 'button'; b.className = `gun ${cls}`;
+  b.type = 'button'; b.className = `gun-card ${cls}`;
   b.innerHTML = `<i>${tag}</i><b>${w.name}</b>
     <div class="stat">Damage ${pips(st.dmg)}</div>
     <div class="stat">Range ${pips(st.range)}</div>
@@ -2550,11 +2560,42 @@ function chiefArt(g, f) {
   gr.addColorStop(0, 'rgba(255,255,255,.08)'); gr.addColorStop(1, 'rgba(0,0,0,.28)');
   g.globalCompositeOperation = 'source-atop'; g.fillStyle = gr; g.fillRect(0, 0, 120, 150); g.globalCompositeOperation = 'source-over';
 }
-let BLUE = [], RED = [], CHIEF = [];
+// Box Breaker guns: rate = shots per soldier per second, dmg = damage per pellet, crowd = how much
+// harder it hits a packed army (splash, piercing, chaining); range limits the short-range guns.
+// Look: line (col glow, core, len, gw, cw), bolt, ball (size), flame, puff.
+const GUNS = {
+  rifle:   { name: 'RIFLE',    rate: 3,   dmg: 1,    pellets: 1, crowd: 1,   range: 99, look: { s: 'line', col: '#ff9a2e', core: '#fff1c4', len: 1.3, gw: 5, cw: 1.6 }, stats: [2, 5, 1], note: 'Accurate all-rounder' },
+  smg:     { name: 'SMG',      rate: 6.5, dmg: 0.5,  pellets: 1, crowd: 1,   range: 99, look: { s: 'line', col: '#ffe14a', core: '#fffbd0', len: 0.7, gw: 4, cw: 1.3 }, stats: [3, 4, 1], note: 'Fast spray, great on boxes' },
+  minigun: { name: 'MINIGUN',  rate: 9,   dmg: 0.4,  pellets: 1, crowd: 1.1, range: 99, look: { s: 'line', col: '#ff6a10', core: '#ffd9a0', len: 2,   gw: 5, cw: 1.5 }, stats: [3, 5, 1], note: 'Very fast stream of rounds' },
+  shotgun: { name: 'SHOTGUN',  rate: 1.2, dmg: 0.65, pellets: 5, crowd: 1.5, range: 32, look: { s: 'line', col: '#ff4a2e', core: '#ffc6b0', len: 0.45, gw: 7, cw: 3 }, stats: [4, 2, 2], note: 'Short-range blast' },
+  sniper:  { name: 'SNIPER',   rate: 0.6, dmg: 6,    pellets: 1, crowd: 1.6, range: 99, look: { s: 'line', col: '#7cc8ff', core: '#ffffff', len: 8,   gw: 5, cw: 1.4 }, stats: [4, 5, 2], note: 'Slow, huge hits' },
+  laser:   { name: 'LASER',    rate: 2.2, dmg: 1.2,  pellets: 1, crowd: 2.2, range: 99, look: { s: 'line', col: '#10dcff', core: '#d8fbff', len: 4,   gw: 9, cw: 2 }, stats: [2, 5, 4], note: 'Beams pierce the army' },
+  railgun: { name: 'RAILGUN',  rate: 0.5, dmg: 6,    pellets: 1, crowd: 3.5, range: 99, look: { s: 'line', col: '#b05cff', core: '#f0dcff', len: 9,   gw: 12, cw: 2.4 }, stats: [3, 5, 5], note: 'Slow, pierces whole rows' },
+  tesla:   { name: 'TESLA',    rate: 1.6, dmg: 1.6,  pellets: 1, crowd: 2.6, range: 99, look: { s: 'bolt', col: '#8f7bff', core: '#ece8ff', len: 2.6, gw: 6, cw: 1.5 }, stats: [2, 5, 4], note: 'Lightning jumps between enemies' },
+  flamer:  { name: 'FLAMER',   rate: 5,   dmg: 0.7,  pellets: 1, crowd: 2.4, range: 28, look: { s: 'flame', col: '#ff5a10', core: '#ffd23f' }, stats: [5, 1, 3], note: 'Short range, burns crowds' },
+  cryo:    { name: 'CRYO',     rate: 4,   dmg: 0.6,  pellets: 1, crowd: 1.3, range: 99, chill: true, look: { s: 'puff', col: '#6fd6ff', core: '#ffffff' }, stats: [2, 5, 2], note: 'Slows the charging army' },
+  rocket:  { name: 'ROCKETS',  rate: 0.6, dmg: 4.5,  pellets: 1, crowd: 3,   range: 99, look: { s: 'ball', col: '#ff7a2a', core: '#fff2c0', size: 0.32 }, stats: [2, 5, 4], note: 'Explode into the army' },
+  grenade: { name: 'GRENADES', rate: 0.5, dmg: 5,    pellets: 1, crowd: 3.6, range: 99, look: { s: 'ball', col: '#a8d840', core: '#f0ffc0', size: 0.3 }, stats: [2, 4, 5], note: 'Wide blasts, weak on boxes' },
+  plasma:  { name: 'PLASMA',   rate: 1.8, dmg: 1.7,  pellets: 1, crowd: 2.2, range: 99, look: { s: 'ball', col: '#3dff8e', core: '#e8fff0', size: 0.38 }, stats: [3, 5, 3], note: 'Bolts that burst on impact' },
+};
+const SHELL = { look: { s: 'ball', col: '#ffc04a', core: '#fff6d8', size: 0.36 }, crowd: 4.5, range: 99 };
+const GUN_IDS = Object.keys(GUNS).filter(k => k !== 'rifle');
+function tankArt(g) {
+  g.fillStyle = '#1d1f24'; rr(g, 4, 18, 18, 54, 5); g.fill(); rr(g, 58, 18, 18, 54, 5); g.fill();
+  g.fillStyle = '#3a3e46'; for (let y = 21; y < 70; y += 6) { g.fillRect(6, y, 14, 2.5); g.fillRect(60, y, 14, 2.5); }
+  g.fillStyle = '#2d5fb8'; rr(g, 16, 22, 48, 50, 6); g.fill();
+  g.fillStyle = '#244d96'; g.fillRect(22, 58, 36, 10);
+  g.fillStyle = '#3c74d6'; circ(g, 40, 40, 15);
+  g.fillStyle = '#2b5bb5'; rr(g, 30, 44, 20, 12, 3); g.fill();
+  g.fillStyle = '#f2c230'; g.fillRect(18, 24, 6, 3); g.fillRect(56, 24, 6, 3);
+  g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.arc(36, 36, 8, Math.PI, Math.PI * 1.8); g.fill();
+}
+let BLUE = [], RED = [], CHIEF = [], TANK = null;
 function buildSprites() {
   BLUE = [0, 1].map(f => mk(40, 57, g => blueArt(g, f)));
   RED = [0, 1].map(f => mk(36, 48, g => redArt(g, f)));
   CHIEF = [0, 1].map(f => mk(120, 150, g => chiefArt(g, f)));
+  TANK = mk(80, 74, tankArt);
 }
 
 /* ---------- sound ---------- */
@@ -2584,12 +2625,14 @@ let state = 'menu', level = 1, best = 1, t = 0;
 let N = 1, px = 0, targetPx = 0, fireMul = 1, fireAcc = 0;
 let blue = [], gold = [], bullets = [], parts = [], texts = [];
 let E = 0, eHp = 1, pool = 0, front = WALL_Z + 0.8, breachT = 20, breached = false, lossAcc = 0;
-let chief = null, endT = 0, kills = 0;
+let chief = null, endT = 0, kills = 0, weapon = 'rifle', tanks = [], chillT = 0, offerGun = null;
+const MAX_TANKS = 3;
 
 function setup() {
   N = 1; px = 0; targetPx = 0; fireMul = 1; fireAcc = 0; lossAcc = 0; kills = 0; endT = 0;
+  weapon = 'rifle'; tanks = []; chillT = 0; offerGun = null;
   bullets = []; parts = []; texts = [];
-  const hm = 1 + 0.3 * (level - 1), vm = 1 + 0.2 * (level - 1);
+  const hm = 1 + 0.15 * (level - 1), vm = 1 + 0.25 * (level - 1);
   // left lane: many quick blue boxes, with a ×2 now and then
   blue = [];
   for (let i = 0; i < 40; i++) {
@@ -2603,15 +2646,21 @@ function setup() {
   gold = [];
   for (let i = 0; i < 40; i++) {
     const z = 4 + i * BOX_GAP;
+    // gold pays about as well per hit point as blue: a bigger reward, not a better deal
     gold.push(i % 6 === 5
-      ? { z, kind: 'fire', v: 25, hp: 25 * Math.pow(1.38, i) * hm }
-      : { z, kind: 'add', v: Math.min(999, Math.round((15 + i * 10) * vm)), hp: 25 * Math.pow(1.38, i) * hm });
+      ? { z, kind: 'fire', v: 25, hp: 40 * Math.pow(1.42, i) * hm }
+      : { z, kind: 'add', v: Math.min(999, Math.round((8 + i * 6) * vm)), hp: 40 * Math.pow(1.42, i) * hm });
   }
+  // weapon boxes in both lanes, tank boxes among the gold ones
+  const pickGun = () => GUN_IDS[ri(0, GUN_IDS.length - 1)];
+  for (const i of [4, 13, 23, 33]) Object.assign(blue[i], { kind: 'gun', gun: pickGun(), hp: blue[i].hp * 1.5 });
+  for (const i of [8, 17, 26]) Object.assign(gold[i], { kind: 'gun', gun: pickGun() });
+  for (const i of [3, 12, 21, 30]) Object.assign(gold[i], { kind: 'tank', hp: gold[i].hp * 1.2 });
   for (const b of [...blue, ...gold]) { b.max = b.hp; b.fl = 0; b.dead = false; }
-  E = Math.round(180 * Math.pow(1.33, level - 1)); eHp = 3 + 0.5 * (level - 1); pool = 0;
+  E = Math.round(480 * Math.pow(1.36, level - 1)); eHp = 6 + 1.5 * (level - 1); pool = 0;
   const chp = Math.round(300 * Math.pow(1.4, level - 1));
   chief = { hp: chp, max: chp, z: 0, biteT: 0, fl: 0, ph: 0 };
-  breachT = 16 + Math.min(level, 10) * 0.8; breached = false; front = WALL_Z + 0.8;
+  breachT = 14 + Math.min(level, 10) * 0.6; breached = false; front = WALL_Z + 0.8;
 }
 
 /* ---------- effects ---------- */
@@ -2629,11 +2678,44 @@ function breakBox(b, side) {
   burst(x, 0.8, b.z, 20, side < 0 ? ['#2f7ef0', '#8fc0ff', '#ffffff'] : ['#f2c230', '#ffe07a', '#ffffff'], 5, 0.8, 0.16);
   if (b.kind === 'add') { N += b.v; floatText(`+${b.v}`, side < 0 ? '#8fc0ff' : '#ffe07a', 30); }
   else if (b.kind === 'mul') { N *= 2; floatText('×2', '#7dff9a', 34); }
-  else { fireMul *= 1.25; floatText('FIRE RATE +25%', '#ff9f43', 22); }
+  else if (b.kind === 'fire') { fireMul *= 1.25; floatText('FIRE RATE +25%', '#ff9f43', 22); }
+  else if (b.kind === 'tank') {
+    const max = 150 + 60 * level;
+    if (tanks.length < MAX_TANKS) { tanks.push({ x: px, hp: max, max, fireT: 0.5, recoil: 0 }); floatText(tanks.length > 1 ? `TANK ${tanks.length}!` : 'TANK JOINS!', '#7fb2ff', 28); }
+    else { const tk = tanks.reduce((a, c) => a.hp / a.max <= c.hp / c.max ? a : c); tk.hp = tk.max; floatText('TANK REPAIRED', '#7fb2ff', 24); }
+  } else if (b.kind === 'gun') {
+    if (b.gun === weapon) floatText('SAME GUN', '#bdb5a7', 22);
+    else openGunChoice(b.gun);
+  }
   N = Math.min(N, 999999);
   sfx.box();
 }
 const rowsOf = e => Math.ceil(e / COLS);
+function destroyTank(tk) {
+  burst(tk.x, 1, squadR(Math.max(1, Math.min(N, MAXVIS))) + 1.3, 40, ['#ffd23f', '#ff8a3a', '#2d5fb8', '#3a3632'], 7, 1.1, 0.18);
+  tanks = tanks.filter(x => x !== tk); shake = 1; sfx.boom();
+  floatText('TANK LOST', '#ff6b5e', 24);
+}
+// a weapon box pauses the game: keep the current gun or take the new one
+function openGunChoice(gun) {
+  offerGun = gun; state = 'pick'; dragId = null;
+  const box = $('lrGunCards'); box.textContent = '';
+  const card = (id, tag, cls, take) => {
+    const w = GUNS[id], pips = n => `<span class="pips">${[1, 2, 3, 4, 5].map(i => `<span class="${i <= n ? 'on' : ''}"></span>`).join('')}</span>`;
+    const b = document.createElement('button'); b.type = 'button'; b.className = `gun-card ${cls}`;
+    b.innerHTML = `<i>${tag}</i><b>${w.name}</b><div class="stat">Damage ${pips(w.stats[0])}</div><div class="stat">Range ${pips(w.stats[1])}</div><div class="stat">Crowd ${pips(w.stats[2])}</div><p>${w.note}</p><em>${take ? 'Take' : 'Keep'}</em>`;
+    b.addEventListener('click', () => chooseGun(take));
+    return b;
+  };
+  box.append(card(weapon, 'Current', 'cur', false), card(gun, 'New', 'new', true));
+  sfx.box();
+  $('lrGun').hidden = false;
+}
+function chooseGun(take) {
+  if (state !== 'pick') return;
+  if (take) { weapon = offerGun; floatText(GUNS[weapon].name + '!', '#f2c230', 26); }
+  $('lrGun').hidden = true; state = 'play';
+}
 
 /* ---------- update ---------- */
 function update(dt) {
@@ -2649,7 +2731,8 @@ function update(dt) {
     burst(0, 1.2, WALL_Z, 50, ['#8a8f96', '#5f646b', '#f2c230', '#1d1b1f'], 7, 1.2, 0.2);
     floatText('THEY BROKE THROUGH!', '#ff6b5e', 26, 0, 6);
   }
-  if (breached && E > 0) front = Math.max(R + 0.6, front - (4.5 + level * 0.05) * dt);
+  chillT = Math.max(0, chillT - dt);
+  if (breached && E > 0) front = Math.max(R + 0.6, front - (5 + level * 0.06) * (chillT > 0 ? 0.6 : 1) * dt);
 
   // the chief marches at the back of the horde, then charges alone
   const chiefZ = breached ? front + rowsOf(E) * SP + 1.6 : WALL_Z + rowsOf(E) * SP + 2.4;
@@ -2661,20 +2744,32 @@ function update(dt) {
 
   // squad fire
   if (live && N > 0) {
-    const rate = Math.min(120, nVis * 3 * fireMul), dmg = N * 3 * fireMul / rate;
+    const w = GUNS[weapon];
+    const rate = Math.min(140 / w.pellets, nVis * w.rate * fireMul), dmg = N * w.rate * w.dmg * fireMul / rate;
     fireAcc += dt * rate;
     while (fireAcc >= 1) {
       fireAcc -= 1;
       const s = form[ri(0, nVis - 1)];
-      bullets.push({ x: px + s.x, z: s.z + 0.3, dmg, dead: false });
+      for (let k = 0; k < w.pellets; k++) bullets.push({ x: px + s.x + (w.pellets > 1 ? rnd(-0.45, 0.45) : 0), z: s.z + 0.3, z0: s.z + 0.3, dmg, w, dead: false });
       sfx.shot();
     }
   }
+  // tanks line up ahead of the squad and shell whatever is in their lane
+  const tankZ = R + 1.3, offs = [[0], [-1.4, 1.4], [-2.6, 0, 2.6]][tanks.length - 1] || [];
+  tanks.forEach((tk, i) => {
+    tk.x += (clamp(px + offs[i], -ROAD + 1.2, ROAD - 1.2) - tk.x) * Math.min(1, dt * 6);
+    tk.recoil = Math.max(0, tk.recoil - dt * 4);
+    if (live && (tk.fireT -= dt) <= 0) {
+      tk.fireT = 1.1;
+      bullets.push({ x: tk.x, z: tankZ + 1, z0: tankZ + 1, dmg: 40 * (1 + 0.35 * (level - 1)), w: SHELL, dead: false });
+      tk.recoil = 1; sfx.hit();
+    }
+  });
 
   // rounds: side lanes hit the nearest box, the centre hits the barricade, then the horde, then the chief
   for (const b of bullets) {
     b.z += 50 * dt;
-    if (b.z > FAR) { b.dead = true; continue; }
+    if (b.z > FAR || b.z - b.z0 > b.w.range) { b.dead = true; continue; }
     if (Math.abs(b.x) > LANE) {
       const col = b.x < 0 ? blue : gold, box = col.find(x => !x.dead);
       if (box && b.z >= box.z - BOX_D / 2) {
@@ -2685,7 +2780,8 @@ function update(dt) {
       if (b.z >= WALL_Z - 0.3) { b.dead = true; if (Math.random() < 0.15) burst(b.x, 1.2, WALL_Z - 0.3, 1, ['#ffe9a8', '#ffffff'], 2, 0.2, 0.08); }
     } else if (E > 0) {
       if (b.z >= front) {
-        b.dead = true; pool += b.dmg;
+        b.dead = true; pool += b.dmg * b.w.crowd;
+        if (b.w.chill) chillT = 1;
         const k = Math.min(E, Math.floor(pool / eHp));
         if (k > 0) {
           E -= k; pool -= k * eHp; kills += k;
@@ -2704,13 +2800,21 @@ function update(dt) {
 
   // melee: the horde's front row trades soldiers one for one
   if (live && breached && E > 0 && front <= R + 0.61) {
-    lossAcc += dt * Math.max(20, Math.min(E, N) * 0.6);
-    while (lossAcc >= 1 && E > 0 && N > 0) { lossAcc -= 1; E--; N--; }
+    lossAcc += dt * (40 + E * 0.35);          // a bigger horde pushes harder
+    while (lossAcc >= 1 && E > 0 && N > 0) {
+      lossAcc -= 1; E--;
+      if (tanks.length) { const tk = tanks[0]; tk.hp -= 8; if (tk.hp <= 0) destroyTank(tk); }
+      else N = Math.max(0, N - 2);           // each attacker takes two soldiers down with it
+    }
     if (Math.random() < dt * 20) { burst(px + rnd(-R, R), 0.8, R + 0.6, 4, ['#c8322b', '#2f6fe0', '#8e1b1b'], 3, 0.5, 0.1); }
     shake = Math.max(shake, 0.3);
   }
   if (live && E === 0 && chief.hp > 0 && chief.z <= R + 1.61) {
-    if ((chief.biteT -= dt) <= 0) { chief.biteT = 0.4; N -= Math.max(2, Math.round(N * 0.05)); shake = 0.8; sfx.hit(); }
+    if ((chief.biteT -= dt) <= 0) {
+      chief.biteT = 0.4; shake = 0.8; sfx.hit();
+      if (tanks.length) { const tk = tanks[0]; tk.hp -= 30 + 10 * level; if (tk.hp <= 0) destroyTank(tk); }
+      else N -= Math.max(2, Math.round(N * 0.05));
+    }
   }
 
   for (const p of parts) { p.vy -= 14 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt; if (p.y < 0) { p.y = 0; p.vx *= 0.4; p.vz *= 0.4; p.vy = 0; } }
@@ -2735,6 +2839,8 @@ function drawBox(b, side) {
   const kinds = {
     add: side < 0 ? ['#5aa0ff', '#2f7ef0', '#1f5fc4'] : ['#ffe07a', '#f2c230', '#c99a14'],
     mul: ['#8dffa8', '#33c45a', '#1f8f3c'],
+    gun: ['#c7a6ff', '#8a5cf0', '#5c36b8'],
+    tank: ['#8fb4ee', '#5b86c9', '#3d68ad'],
     fire: ['#ffc07a', '#ff8a2a', '#c45e14'],
   };
   const [top, frontC, edge] = kinds[b.kind];
@@ -2748,7 +2854,7 @@ function drawBox(b, side) {
   ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = Math.max(1, 0.05 * a[2]);
   ctx.beginPath(); ctx.moveTo(d[0], d[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(bb[0], bb[1]); ctx.lineTo(a[0], a[1]); ctx.closePath(); ctx.stroke();
   const m = proj(x, BOX_H * 0.5, z - hd);
-  const label = b.kind === 'add' ? `+${b.v}` : b.kind === 'mul' ? '×2' : 'FIRE+';
+  const label = b.kind === 'add' ? `+${b.v}` : b.kind === 'mul' ? '×2' : b.kind === 'gun' ? GUNS[b.gun].name : b.kind === 'tank' ? 'TANK' : 'FIRE+';
   const size = Math.max(8, Math.min(0.9, 2.6 / label.length) * m[2]);
   ctx.font = `${size}px Bungee, Impact, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = Math.max(2, size * 0.14); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.fillStyle = '#fff';
@@ -2807,6 +2913,21 @@ function drawChief() {
   ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(p[0] - bw / 2, by, bw, bh);
   ctx.fillStyle = '#d2382c'; ctx.fillRect(p[0] - bw / 2, by, bw * chief.hp / chief.max, bh);
 }
+function drawTank(tk) {
+  const z = squadR(Math.max(1, Math.min(N, MAXVIS))) + 1.3;
+  const sh = proj(tk.x, 0, z); if (!sh) return;
+  ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(sh[0], sh[1], 1.3 * sh[2], 0.5 * sh[2], 0, 0, Math.PI * 2); ctx.fill();
+  const p = proj(tk.x, 0, z - 1.1), w = 2.2 * p[2], h = w * TANK.height / TANK.width;
+  ctx.drawImage(TANK, p[0] - w / 2, p[1] - h, w, h);
+  const bt = proj(tk.x, 1.15, z + 0.1 - tk.recoil * 0.3), bb = proj(tk.x, 1.15, z + 1.6 - tk.recoil * 0.3);
+  if (bt && bb) {
+    ctx.strokeStyle = '#1b2f57'; ctx.lineCap = 'butt'; ctx.lineWidth = 0.22 * p[2]; ctx.beginPath(); ctx.moveTo(bt[0], bt[1]); ctx.lineTo(bb[0], bb[1]); ctx.stroke();
+    ctx.strokeStyle = '#3c74d6'; ctx.lineWidth = 0.12 * p[2]; ctx.beginPath(); ctx.moveTo(bt[0], bt[1]); ctx.lineTo(bb[0], bb[1]); ctx.stroke();
+  }
+  const bw = 1.8 * p[2], by = p[1] - h - 0.3 * p[2], bh = Math.max(4, 0.14 * p[2]);
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(p[0] - bw / 2, by, bw, bh);
+  ctx.fillStyle = tk.hp / tk.max > 0.35 ? '#3f8cff' : '#d2382c'; ctx.fillRect(p[0] - bw / 2, by, bw * tk.hp / tk.max, bh);
+}
 function drawSoldier(i) {
   const s = form[i], p = proj(px + s.x, 0, s.z); if (!p) return;
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p[0], p[1], 0.3 * p[2], 0.12 * p[2], 0, 0, Math.PI * 2); ctx.fill();
@@ -2857,21 +2978,47 @@ function draw() {
   if (chief.hp > 0) list.push([chief.z, 3]);
   const nVis = Math.min(N, MAXVIS);
   for (let i = 0; i < nVis; i++) list.push([form[i].z, 4, i]);
+  for (const tk of tanks) list.push([squadR(Math.max(1, nVis)) + 1.3, 5, tk]);
   list.sort((a, b) => b[0] - a[0]);
   for (const it of list) {
     if (it[1] === 0) drawBox(it[2], it[3]);
     else if (it[1] === 1) drawWall();
     else if (it[1] === 2) drawRow(it[0], it[2]);
     else if (it[1] === 3) drawChief();
-    else drawSoldier(it[2]);
+    else if (it[1] === 4) drawSoldier(it[2]);
+    else drawTank(it[2]);
   }
 
-  // rounds
+  // rounds, in each gun's own colour and style
   ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-  for (const [col, lw, al] of [['#ffb347', 5, 0.45], ['#fff3c8', 1.6, 0.95]]) {
-    ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.globalAlpha = al; ctx.beginPath();
-    for (const b of bullets) { const a = proj(b.x, 1.1, b.z), c = proj(b.x, 1.1, b.z - 1.2); if (a && c) { ctx.moveTo(a[0], a[1]); ctx.lineTo(c[0], c[1]); } }
-    ctx.stroke();
+  const lines = new Map();
+  for (const b of bullets) {
+    const L = b.w.look, a = proj(b.x, 1.1, b.z); if (!a) continue;
+    if (L.s === 'ball' || L.s === 'flame' || L.s === 'puff') {
+      const age = clamp((b.z - b.z0) / Math.min(b.w.range, 60), 0, 1);
+      const r = (L.s === 'ball' ? L.size : L.s === 'flame' ? 0.18 + age * 0.55 : 0.14 + age * 0.12) * a[2];
+      if (L.s === 'flame') ctx.globalAlpha = 0.9 - age * 0.6;
+      const gr = ctx.createRadialGradient(a[0], a[1], 0, a[0], a[1], r);
+      gr.addColorStop(0, L.core); gr.addColorStop(0.4, L.col); gr.addColorStop(1, L.col + '00');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    const c = proj(b.x, 1.1, b.z - L.len); if (!c) continue;
+    if (!lines.has(L)) lines.set(L, []);
+    lines.get(L).push(a, c);
+  }
+  for (const [L, segs] of lines) {
+    for (const [col, lw, al] of [[L.col, L.gw, 0.5], [L.core, L.cw, 0.95]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.globalAlpha = al; ctx.beginPath();
+      for (let i = 0; i < segs.length; i += 2) {
+        const a = segs[i], c = segs[i + 1];
+        ctx.moveTo(a[0], a[1]);
+        if (L.s === 'bolt') for (let j = 1; j < 4; j++) ctx.lineTo(a[0] + (c[0] - a[0]) * j / 4 + (Math.random() - 0.5) * Math.max(4, Math.abs(c[1] - a[1]) * 0.35), a[1] + (c[1] - a[1]) * j / 4);
+        ctx.lineTo(c[0], c[1]);
+      }
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   for (const p of parts) {
@@ -2894,12 +3041,22 @@ function draw() {
 }
 
 /* ---------- HUD, screens, saving ---------- */
+let hudKey = '';
 function updateHud() {
   $('lrLevel').textContent = level;
   $('lrStatus').textContent = breached ? 'Charge!' : `Breach ${Math.ceil(breachT)}s`;
   $('lrFoe').textContent = E + (chief.hp > 0 ? ' +chief' : '');
+  const key = weapon + '|' + fireMul.toFixed(2) + '|' + tanks.length;
+  if (key !== hudKey) {
+    hudKey = key;
+    const box = $('lrBuffs'); box.textContent = '';
+    const chip = (cls, name, val) => { const d = document.createElement('div'); d.className = `buff ${cls}`; d.textContent = name; if (val) { const b = document.createElement('b'); b.textContent = val; d.appendChild(b); } box.appendChild(d); };
+    chip('gun', GUNS[weapon].name, '');
+    if (fireMul > 1.01) chip('gun', 'Fire rate', `+${Math.round((fireMul - 1) * 100)}%`);
+    if (tanks.length) chip('unit', tanks.length > 1 ? 'Tanks' : 'Tank', `${tanks.length}/${MAX_TANKS}`);
+  }
 }
-function showScreen(id) { for (const o of ['lrTitle', 'lrEnd']) $(o).hidden = o !== id; }
+function showScreen(id) { for (const o of ['lrTitle', 'lrEnd', 'lrGun']) $(o).hidden = o !== id; }
 let saveRef = null, localAt = 0;
 function saveData() { return { level, best, savedAt: Date.now() }; }
 function save() {
@@ -2938,7 +3095,7 @@ function finish(won) {
 }
 function play() {
   audioInit(); resize(); setup(); state = 'play'; showScreen(null);
-  $('lrHud').hidden = false; updateHud();
+  $('lrHud').hidden = false; hudKey = ''; updateHud();
 }
 function enter() {
   cvs.hidden = false; resize();
@@ -2968,7 +3125,7 @@ let lastTs = 0;
 function frame(ts) {
   const dt = Math.min(0.05, Math.max(0, (ts - lastTs) / 1000)); lastTs = ts;
   if (window.activeGame === 'lr' && !document.hidden && W) {
-    if (state === 'play' || state === 'end') update(dt); else t += dt;
+    if (state === 'play' || state === 'end') update(dt); else if (state !== 'pick') t += dt;
     draw();
   }
   requestAnimationFrame(frame);
@@ -2982,8 +3139,8 @@ connectCloud();
 window.lr = { enter, leave };
 // test hooks
 window.__lr = {
-  update: dt => update(dt), setLevel: n => { level = n; }, play, steer: x => { targetPx = x; },
-  get: () => ({ state, level, N, E, chief: chief && Math.round(chief.hp), breached, breachT: +breachT.toFixed(1), px,
+  update: dt => update(dt), setLevel: n => { level = n; }, play, steer: x => { targetPx = x; }, choose: take => chooseGun(take),
+  get: () => ({ state, level, N, E, chief: chief && Math.round(chief.hp), breached, breachT: +breachT.toFixed(1), px, weapon, tanks: tanks.length, front: +front.toFixed(1), thp: tanks.map(x => Math.round(x.hp)).join('/'),
     blue: blue.find(b => !b.dead), gold: gold.find(b => !b.dead) }),
 };
 })();
