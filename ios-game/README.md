@@ -32,7 +32,7 @@ Based on the "Top War" lane ads. You start with one soldier in front of three la
 Drag to move; your squad shoots the lane it stands in. Each box down a lane is tougher than
 the last: split your time between growing the army and shooting the horde before it
 arrives, then finish its chief. Each level brings a bigger army.
-Progress saves like Horde Highway's.
+Progress saves like Horde Highway's, and the title screen has the same **Start at level** picker.
 
 ## Play on iPhone
 

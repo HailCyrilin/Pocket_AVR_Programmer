@@ -116,7 +116,7 @@ body{
 .tag.drop{background:var(--epic)}
 .start-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:600;font-size:17px;color:var(--muted)}
 .start-row select{
-  font:400 17px/1 var(--display);color:var(--ink);background:rgba(255,255,255,.08);
+  font:400 17px/1 var(--display);color:var(--ink);background:var(--night);
   border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 10px;min-width:96px;
 }
 .start-row select:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
@@ -295,6 +295,10 @@ body{
     </ul>
     <p>Drag to move. Your squad shoots the lane it stands in.</p>
     <button id="lrPlay" class="btn" type="button">Play</button>
+    <div class="start-row" id="lrStartRow" hidden>
+      <label for="lrLvlPick">Start at level</label>
+      <select id="lrLvlPick"></select>
+    </div>
     <button id="lrGames" class="btn ghost" type="button">All games</button>
     <p class="best">Best: level <span id="lrBest">1</span></p>
   </div>
@@ -3034,6 +3038,13 @@ async function connectCloud() {
 function refreshTitle() {
   $('lrPlay').textContent = level > 1 ? `Continue · level ${level}` : 'Play';
   $('lrBest').textContent = best;
+  const sel = $('lrLvlPick');
+  $('lrStartRow').hidden = best <= 1;
+  if (sel.options.length !== best) {
+    sel.textContent = '';
+    for (let i = 1; i <= best; i++) { const o = document.createElement('option'); o.value = o.textContent = String(i); sel.appendChild(o); }
+  }
+  sel.value = String(level);
   const hub = $('hubLR'); if (hub) hub.textContent = level > 1 ? `Level ${level}` : 'New';
 }
 function finish(won) {
@@ -3058,6 +3069,10 @@ function enter() {
 }
 function leave() { state = 'menu'; cvs.hidden = true; $('lrHud').hidden = true; showScreen(null); }
 $('lrPlay').addEventListener('click', play);
+$('lrLvlPick').addEventListener('change', e => {
+  level = clamp(parseInt(e.target.value, 10) || 1, 1, best);
+  save(); refreshTitle(); setup();
+});
 $('lrNext').addEventListener('click', play);
 $('lrMenu').addEventListener('click', () => { state = 'menu'; setup(); $('lrHud').hidden = true; refreshTitle(); showScreen('lrTitle'); });
 $('lrGames').addEventListener('click', () => window.showHub && window.showHub());
