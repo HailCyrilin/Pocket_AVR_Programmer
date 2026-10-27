@@ -67,10 +67,10 @@ body{
 
 #bossBar{
   position:relative;height:26px;border-radius:6px;overflow:hidden;
-  background:var(--panel);border:2px solid var(--blood);margin-inline:auto;width:min(70%,360px);
+  background:var(--panel);border:2px solid var(--blood);margin-inline:auto;width:min(82%,380px);
 }
 #bossFill{position:absolute;inset:0 auto 0 0;width:100%;background:var(--blood)}
-#bossHp{position:relative;display:block;text-align:center;font:400 17px/22px var(--display);color:var(--ink);font-variant-numeric:tabular-nums}
+#bossHp{position:relative;display:block;text-align:center;font:400 15px/22px var(--display);white-space:nowrap;color:var(--ink);font-variant-numeric:tabular-nums}
 
 .ov{
   position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
@@ -318,6 +318,20 @@ function mk(w, h, fn) {
   const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2;
   const g = c.getContext('2d'); g.scale(2, 2); fn(g); return c;
 }
+// dark rim around a sprite so it reads against any road
+function outlined(src) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const g = c.getContext('2d');
+  const sil = document.createElement('canvas'); sil.width = src.width; sil.height = src.height;
+  const sg = sil.getContext('2d'); sg.drawImage(src, 0, 0); sg.globalCompositeOperation = 'source-in'; sg.fillStyle = 'rgba(20,16,18,.85)'; sg.fillRect(0, 0, sil.width, sil.height);
+  for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) g.drawImage(sil, dx, dy);
+  g.drawImage(src, 0, 0);
+  return c;
+}
+function mirrored(src) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const g = c.getContext('2d'); g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(src, 0, 0); return c;
+}
 function flashOf(src) {
   const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
   const g = c.getContext('2d'); g.drawImage(src, 0, 0);
@@ -427,6 +441,83 @@ function tankArt(g) {
   g.fillStyle = '#f2c230'; g.fillRect(18, 24, 6, 3); g.fillRect(56, 24, 6, 3);
   g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.arc(36, 36, 8, Math.PI, Math.PI * 1.8); g.fill();
 }
+function bloatArt(g, f) {
+  // a swollen acid zombie: huge belly, tiny head, glowing pustules
+  const cx = 60, a = f ? 4 : -4;
+  g.fillStyle = '#3d4a2c'; g.fillRect(cx - 30, 118, 22, 30); g.fillRect(cx + 8, 118, 22, 30);
+  g.fillStyle = '#232a1a'; g.fillRect(cx - 32, 144, 26, 6); g.fillRect(cx + 6, 144, 26, 6);
+  g.fillStyle = '#7d9a4c';
+  rr(g, cx - 62, 70 + a, 18, 40, 9); g.fill(); rr(g, cx + 44, 70 - a, 18, 40, 9); g.fill();
+  const gr = g.createRadialGradient(cx - 14, 70, 8, cx, 84, 56);
+  gr.addColorStop(0, '#b3d16e'); gr.addColorStop(0.7, '#86a752'); gr.addColorStop(1, '#5e7a36');
+  g.fillStyle = gr; g.beginPath(); g.ellipse(cx, 84, 48, 46, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#4d6229'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(cx - 8, 60); g.lineTo(cx + 6, 112); g.stroke();
+  for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(cx - 14 + i * 3, 66 + i * 8); g.lineTo(cx + 4 + i * 3, 64 + i * 8); g.stroke(); }
+  [[-26, 70, 7], [24, 90, 9], [-16, 104, 6], [30, 64, 5], [-34, 92, 5]].forEach(([dx, y, r]) => {
+    g.fillStyle = '#d9f27a'; circ(g, cx + dx, y, r); g.fillStyle = 'rgba(80,110,20,.6)'; circ(g, cx + dx + r * 0.3, y + r * 0.3, r * 0.45);
+  });
+  g.fillStyle = '#7d9a4c'; circ(g, cx, 34, 13);
+  g.fillStyle = '#ffd23f'; circ(g, cx - 5, 32, 2.6); circ(g, cx + 5, 32, 2.6);
+  g.fillStyle = '#26300f'; g.beginPath(); g.ellipse(cx, 41, 6, 3.5, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#b6f04a'; g.fillRect(cx - 2, 43, 3, 9); circ(g, cx - 0.5, 53, 2.2);
+}
+function colossusArt(g, f) {
+  // a skeletal giant: bone limbs, open ribcage, horned skull with burning eyes
+  const cx = 60, a = f ? 6 : -6, bone = '#e8dec6';
+  g.strokeStyle = bone; g.lineCap = 'round';
+  g.lineWidth = 10; g.beginPath(); g.moveTo(cx - 14, 96); g.lineTo(cx - 20, 146); g.moveTo(cx + 14, 96); g.lineTo(cx + 20, 146); g.stroke();
+  g.fillStyle = '#2a2228'; g.beginPath(); g.moveTo(cx - 34, 40); g.lineTo(cx + 34, 40); g.lineTo(cx + 22, 100); g.lineTo(cx - 22, 100); g.closePath(); g.fill();
+  g.lineWidth = 7; g.beginPath(); g.moveTo(cx, 40); g.lineTo(cx, 104); g.stroke();
+  g.lineWidth = 4;
+  for (let i = 0; i < 5; i++) {
+    const y = 50 + i * 10, w = 30 - i * 3;
+    g.beginPath(); g.moveTo(cx, y); g.quadraticCurveTo(cx - w, y + 2, cx - w + 4, y + 8); g.stroke();
+    g.beginPath(); g.moveTo(cx, y); g.quadraticCurveTo(cx + w, y + 2, cx + w - 4, y + 8); g.stroke();
+  }
+  g.fillStyle = bone; rr(g, cx - 22, 96, 44, 12, 5); g.fill();
+  g.lineWidth = 9;
+  g.beginPath(); g.moveTo(cx - 34, 44); g.lineTo(cx - 46, 76 + a); g.lineTo(cx - 44, 112 + a); g.stroke();
+  g.beginPath(); g.moveTo(cx + 34, 44); g.lineTo(cx + 46, 76 - a); g.lineTo(cx + 44, 112 - a); g.stroke();
+  g.fillStyle = '#3a2f30';
+  for (const [x0, y0, d] of [[cx - 44, 112 + a, -1], [cx + 44, 112 - a, 1]]) for (let k = -1; k <= 1; k++) {
+    g.beginPath(); g.moveTo(x0 + k * 5, y0); g.lineTo(x0 + k * 7 + d * 2, y0 + 14); g.lineTo(x0 + k * 5 + 3, y0); g.fill();
+  }
+  g.fillStyle = '#cfc4aa'; rr(g, cx - 46, 34, 24, 16, 6); g.fill(); rr(g, cx + 22, 34, 24, 16, 6); g.fill();
+  g.fillStyle = bone; g.beginPath(); g.ellipse(cx, 24, 15, 17, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#3a2f30';
+  g.beginPath(); g.moveTo(cx - 12, 14); g.quadraticCurveTo(cx - 30, 4, cx - 28, -4); g.quadraticCurveTo(cx - 22, 6, cx - 8, 10); g.fill();
+  g.beginPath(); g.moveTo(cx + 12, 14); g.quadraticCurveTo(cx + 30, 4, cx + 28, -4); g.quadraticCurveTo(cx + 22, 6, cx + 8, 10); g.fill();
+  g.fillStyle = '#1a1214'; circ(g, cx - 6, 23, 4.5); circ(g, cx + 6, 23, 4.5);
+  g.fillStyle = '#ff4030'; circ(g, cx - 6, 23, 2); circ(g, cx + 6, 23, 2);
+  g.fillStyle = '#1a1214'; g.fillRect(cx - 7, 33, 14, 4);
+  g.fillStyle = bone; for (let i = 0; i < 4; i++) g.fillRect(cx - 6 + i * 3.5, 33, 2, 4);
+}
+function queenArt(g, f) {
+  // an insect-like hive queen: six legs, armoured body, glowing egg sacs
+  const cx = 60, a = f ? 5 : -5;
+  g.fillStyle = 'rgba(200,170,255,.25)';
+  g.beginPath(); g.ellipse(cx - 34, 40, 30, 12, -0.5, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(cx + 34, 40, 30, 12, 0.5, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#3b1830'; g.lineWidth = 6; g.lineCap = 'round';
+  [[-1, 60, 0], [1, 60, 0], [-1, 78, 1], [1, 78, 1], [-1, 96, 0], [1, 96, 1]].forEach(([d, y, ph]) => {
+    const lift = (ph ? a : -a) * d;
+    g.beginPath(); g.moveTo(cx + d * 18, y); g.lineTo(cx + d * 46, y - 18 + lift); g.lineTo(cx + d * 56, 146); g.stroke();
+  });
+  const gr = g.createLinearGradient(cx - 30, 0, cx + 30, 0);
+  gr.addColorStop(0, '#8a3d6e'); gr.addColorStop(0.5, '#6a2a55'); gr.addColorStop(1, '#4a1a3c');
+  g.fillStyle = gr; g.beginPath(); g.ellipse(cx, 104, 26, 34, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#ffcf4a'; [[-10, 100], [9, 112], [-4, 124], [12, 94]].forEach(([dx, y]) => circ(g, cx + dx, y, 5));
+  g.fillStyle = 'rgba(255,240,170,.6)'; [[-11, 98], [8, 110]].forEach(([dx, y]) => circ(g, cx + dx, y, 2));
+  g.fillStyle = '#5a2248'; g.beginPath(); g.ellipse(cx, 66, 22, 18, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#2d0f24'; g.lineWidth = 2;
+  for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(cx - 20, 64 + i * 6); g.lineTo(cx + 20, 64 + i * 6); g.stroke(); }
+  g.fillStyle = '#6e2b5a'; g.beginPath(); g.ellipse(cx, 40, 15, 13, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#ff3b3b'; [[-7, 36], [7, 36], [-3, 31], [3, 31], [-9, 42], [9, 42]].forEach(([dx, y]) => circ(g, cx + dx, y, 2));
+  g.strokeStyle = '#e8dcc0'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(cx - 6, 50); g.quadraticCurveTo(cx - 16, 58 + a, cx - 6, 62); g.stroke();
+  g.beginPath(); g.moveTo(cx + 6, 50); g.quadraticCurveTo(cx + 16, 58 - a, cx + 6, 62); g.stroke();
+}
 function civArt(g, f) {
   // a survivor in a hi-vis vest, waving both arms
   const cx = 20, a = f ? -6 : 0;
@@ -458,7 +549,7 @@ const ZT = {
   spitter: { hp: 2.2, spd: 1.0, r: 0.32, h: 1.80, bite: 1 },
 };
 const SPR = { walker: [], runner: [], brute: [], spitter: [] };
-let SOLDIER = [], BOSS = [], TANK = null, HELI = null, CIV = [], VIPHELI = null;
+let SOLDIER = [], BOSS_SPR = {}, TANK = null, HELI = null, CIV = [], VIPHELI = null;
 function buildSprites() {
   const looks = {
     walker: [
@@ -478,7 +569,8 @@ function buildSprites() {
         if (type === 'brute') { g.translate(33, 0); g.scale(1.38, 1); g.translate(-24, 0); }
         zombieArt(g, o, f);
       }));
-      SPR[type].push({ n, flash: n.map(flashOf) });
+      const no = n.map(outlined), fl = n.map(flashOf);
+      SPR[type].push({ n: no, nf: no.map(mirrored), flash: fl, ff: fl.map(mirrored) });
     }
   }
   SOLDIER = [0, 1].map(f => mk(40, 57, g => soldierArt(g, f)));
@@ -486,8 +578,10 @@ function buildSprites() {
   VIPHELI = mk(96, 96, g => { heliArt(g); g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(242,159,67,.55)'; g.fillRect(0, 0, 96, 96); });
   TANK = mk(80, 74, tankArt);
   HELI = mk(96, 96, heliArt);
-  BOSS = [0, 1].map(f => mk(120, 150, g => bossArt(g, f)));
-  BOSS.flash = BOSS.map(flashOf);
+  for (const bt of BOSS_TYPES) {
+    const n = [0, 1].map(f => outlined(mk(120, 150, g => bt.art(g, f))));
+    BOSS_SPR[bt.id] = { n, flash: n.map(flashOf) };
+  }
 }
 
 /* ---------- sound (tiny WebAudio synth, starts on first tap) ---------- */
@@ -542,10 +636,14 @@ const WEAPONS = {
   smg:     { name: 'SMG',     rate: 6,    dmg: 0.5,  pellets: 1, spread: 1.6, aim: 0.8, speed: 52, range: 210, pierce: 0, splash: 0,   col: '#fff3a0', len: 1.0 },
   shotgun: { name: 'SHOTGUN', rate: 1,    dmg: 0.7,  pellets: 6, spread: 5,   aim: 0.4, speed: 44, range: 40, pierce: 1, splash: 0,   col: '#ffb070', len: 0.8 },
   laser:   { name: 'LASER',   rate: 2,    dmg: 1.1,  pellets: 1, spread: 0.1, aim: 1,   speed: 85, range: 210, pierce: 5, splash: 0,   col: '#7ff0ff', len: 3.2 },
-  rocket:  { name: 'ROCKETS', rate: 0.55, dmg: 2.4,  pellets: 1, spread: 0.4, aim: 1,   speed: 30, range: 210, pierce: 0, splash: 1.5, col: '#ff8a3a', len: 0.5, big: true },
+  rocket:  { name: 'ROCKETS', rate: 0.55, dmg: 4,    pellets: 1, spread: 0.4, aim: 1,   speed: 30, range: 210, pierce: 0, splash: 1.5, col: '#ff8a3a', len: 0.5, big: true },
   minigun: { name: 'MINIGUN',  rate: 9,    dmg: 0.38, pellets: 1, spread: 0.9, aim: 0.9, speed: 60,  range: 210, pierce: 0,  splash: 0, col: '#fff8d0', len: 1.4 },
   flamer:  { name: 'FLAMER',   rate: 5,    dmg: 0.6,  pellets: 2, spread: 2.5, aim: 0.6, speed: 30,  range: 30,  pierce: 3,  splash: 0, col: '#ff7a2a', len: 1.6, burn: 1.8, thick: true },
   railgun: { name: 'RAILGUN',  rate: 0.45, dmg: 5,    pellets: 1, spread: 0,   aim: 1,   speed: 150, range: 210, pierce: 40, splash: 0, col: '#c08bff', len: 8 },
+  sniper:  { name: 'SNIPER',   rate: 0.6,  dmg: 6,    pellets: 1, spread: 0,   aim: 1,   speed: 160, range: 210, pierce: 2,  splash: 0,   col: '#f4f4ff', len: 7 },
+  grenade: { name: 'GRENADES', rate: 0.5,  dmg: 5,    pellets: 1, spread: 0.3, aim: 1,   speed: 40,  range: 210, pierce: 0,  splash: 2.4, col: '#b6e05a', len: 0.5, big: true, lob: true },
+  plasma:  { name: 'PLASMA',   rate: 1.8,  dmg: 1.4,  pellets: 1, spread: 0.2, aim: 1,   speed: 60,  range: 210, pierce: 0,  splash: 1,   col: '#5dff9e', len: 1.2, big: true, small: true },
+  cryo:    { name: 'CRYO',     rate: 4,    dmg: 0.55, pellets: 1, spread: 1,   aim: 0.8, speed: 50,  range: 210, pierce: 1,  splash: 0,   col: '#9fe8ff', len: 1.4, chill: true, thick: true },
   tesla:   { name: 'TESLA',    rate: 1.6,  dmg: 1.3,  pellets: 1, spread: 0.2, aim: 1,   speed: 70,  range: 210, pierce: 0,  splash: 0, col: '#b8a6ff', len: 2, chain: 3 },
 };
 // what the weapon cards show: 1-5 pips per stat, and a one-line summary
@@ -559,8 +657,12 @@ const GUN_STATS = {
   flamer:  { dmg: 5, range: 1, crowd: 3, note: 'Short range, sets zombies on fire' },
   railgun: { dmg: 3, range: 5, crowd: 5, note: 'Slow, pierces everything in line' },
   tesla:   { dmg: 2, range: 5, crowd: 4, note: 'Lightning jumps to 3 more zombies' },
+  sniper:  { dmg: 4, range: 5, crowd: 2, note: 'Slow, huge hits that pierce 2' },
+  grenade: { dmg: 3, range: 4, crowd: 5, note: 'Lobbed shells, wide blast' },
+  plasma:  { dmg: 3, range: 5, crowd: 3, note: 'Bolts that burst on impact' },
+  cryo:    { dmg: 2, range: 5, crowd: 2, note: 'Icy stream that slows zombies' },
 };
-const GUNS = ['smg', 'shotgun', 'laser', 'rocket', 'minigun', 'flamer', 'railgun', 'tesla'];
+const GUNS = ['smg', 'shotgun', 'laser', 'rocket', 'minigun', 'flamer', 'railgun', 'tesla', 'sniper', 'grenade', 'plasma', 'cryo'];
 const CRATE_LABEL = { fire: 'FIRE+', tank: 'TANK', heli: 'HELI', shield: 'SHIELD', coins: 'COINS', freeze: 'FREEZE', nuke: 'NUKE' };
 const LOOT = [['weapon', 30], ['fire', 10], ['troops', 15], ['tank', 11], ['heli', 9], ['shield', 7], ['coins', 8], ['freeze', 5], ['nuke', 3]];
 
@@ -569,7 +671,7 @@ let level = 1, best = 1, totalKills = 0;
 let dist = 0, speed = 0, L = 260, N = 6, px = 0, targetPx = 0, fireLvl = 1, weapon = 'rifle', kills = 0;
 let zombies = [], bullets = [], gates = [], crates = [], parts = [], decals = [], texts = [], flashes = [];
 let boss = null, bossPhase = false, endTimer = 0, fireAcc = 0, shake = 0, hurt = 0, t = 0, countPop = 0;
-let tanks = [], helis = [], spits = [], lastBoom = 0;
+let tanks = [], helis = [], spits = [], rings = [], lastBoom = 0;
 const maxTanks = () => 1 + (level >= 6) + (level >= 11);
 const maxHelis = maxTanks;
 let perks = {}, drops = [], dropNo = 0, offer = [], pendingBooms = [];
@@ -614,7 +716,7 @@ const lvlHp = () => 1 + 0.5 * (D() - 1);
 function makeZombie(type, x, zAbs) {
   const d = ZT[type], hp = d.hp * lvlHp();
   return { type, x, zAbs, z: zAbs - dist, hp, max: hp, spd: d.spd * rnd(0.85, 1.15) * (1 + 0.04 * D()), r: d.r, h: d.h, bite: d.bite,
-    v: ri(0, SPR[type].length - 1), spitT: rnd(1, 3), ph: Math.random() * 6, off: rnd(-1, 1), fl: 0, dead: false };
+    v: ri(0, SPR[type].length - 1), sc: rnd(0.9, 1.12), flip: Math.random() < 0.5, spitT: rnd(1, 3), ph: Math.random() * 6, off: rnd(-1, 1), fl: 0, dead: false };
 }
 function makeWave(pos, big, mul = 1) {
   const frac = pos / L;
@@ -696,7 +798,7 @@ function startLevel() {
   dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3 + Math.max(0, level - 10) * 3 + 2 * meta.squad; px = 0; targetPx = 0; camX = 0; kills = 0;
   fireLvl = 1; weapon = 'rifle'; tanks = []; helis = []; spits = [];
   perks = {}; dropNo = 0; drops = [L * 0.34, L * 0.68]; pendingBooms = []; shieldT = 0; freezeT = 0; flashT = 0;
-  zombies = []; bullets = []; gates = []; crates = []; parts = []; decals = []; texts = []; flashes = [];
+  zombies = []; bullets = []; gates = []; crates = []; parts = []; decals = []; texts = []; flashes = []; rings = [];
   boss = null; bossPhase = false; endTimer = 0; fireAcc = 0; shake = 0; hurt = 0;
   if (ms('chopper')) { const hp = 160 + 45 * level; vip = { x: 0, z: 1.2, hp, max: hp, fl: 0, ph: 0 }; }
   if (ms('hold')) return;            // the road stays put; waves are spawned over time in update()
@@ -719,16 +821,24 @@ function startLevel() {
   }
 }
 
+// a different boss each level, in turn
+const BOSS_TYPES = [
+  { id: 'king',     name: 'MUTANT KING',   art: (g, f) => bossArt(g, f),     hp: 1,    speed: 1,    h: 5.2, every: 1,   count: 1,   minion: () => Math.random() < 0.35 ? 'runner' : 'walker' },
+  { id: 'bloat',    name: 'BLOATER',       art: (g, f) => bloatArt(g, f),    hp: 1.25, speed: 0.75, h: 5,   every: 1.1, count: 0.8, minion: () => level >= 3 && Math.random() < 0.35 ? 'spitter' : 'walker' },
+  { id: 'colossus', name: 'BONE COLOSSUS', art: (g, f) => colossusArt(g, f), hp: 1,    speed: 1.35, h: 6,   every: 1,   count: 0.9, minion: () => Math.random() < 0.15 ? 'brute' : 'walker' },
+  { id: 'queen',    name: 'HIVE QUEEN',    art: (g, f) => queenArt(g, f),    hp: 0.9,  speed: 1,    h: 4.6, every: 0.6, count: 1.2, minion: () => 'runner' },
+];
 function spawnBoss() {
+  const bt = BOSS_TYPES[(level - 1) % BOSS_TYPES.length];
   const w = WEAPONS[weapon];
   const squadDps = N * w.rate * w.dmg * w.pellets * (1 + 0.3 * (fireLvl - 1));
   const support = tanks.length * 26 * lvlHp() / 1.1 * 2 + helis.length * 12 * lvlHp() / 0.35 * 2;
-  const hp = Math.round(Math.max(420 * Math.pow(D(), 1.5), (squadDps + support) * (5.5 + D() * 0.6)));
-  boss = { x: 0, zAbs: dist + 28, y: 9, hp, max: hp, ph: 0, fl: 0, spawnT: 2.5, biteT: 0, dead: false };
+  const hp = Math.round(Math.max(420 * Math.pow(D(), 1.5), (squadDps + support) * (5.5 + D() * 0.6)) * bt.hp);
+  boss = { type: bt, x: 0, zAbs: dist + 28, y: 9, hp, max: hp, ph: 0, fl: 0, spawnT: 2.5, biteT: 0, dead: false };
   shake = 1;
   $('bossBar').hidden = false;
   sfx.boss();
-  floatText('BOSS!', '#ff6b5e', 34);
+  floatText(bt.name, '#ff6b5e', 30);
 }
 
 /* ---------- effects ---------- */
@@ -771,15 +881,22 @@ function damageBoss(dmg) {
     sfx.win();
   }
 }
-function explode(x, zAbs, r, dmg) {
-  burst(x, 0.4, zAbs, 14, ['#ffd23f', '#ff8a3a', '#e0451f', '#55504a', '#3a3632'], 6, 0.6, 0.16);
-  decals.push({ x, zAbs, s: r * 0.6, rot: rnd(0, 3), a: 1, scorch: true });
-  if (decals.length > 140) decals.shift();
+function explode(x, zAbs, r, dmg, small) {
+  if (small) {
+    burst(x, 0.5, zAbs, 4, ['#5dff9e', '#c8ffe0', '#2fbf6e'], 3, 0.35, 0.1);
+    if (rings.length < 60) rings.push({ x, zAbs, r: r * 1.1, t: 0, life: 0.25, col: '93,255,158' });
+  } else {
+    burst(x, 0.4, zAbs, 14, ['#ffd23f', '#ff8a3a', '#e0451f', '#55504a', '#3a3632'], 6, 0.6, 0.16);
+    decals.push({ x, zAbs, s: r * 0.6, rot: rnd(0, 3), a: 1, scorch: true });
+    if (decals.length > 140) decals.shift();
+    if (rings.length < 60) rings.push({ x, zAbs, r: r * 1.3, t: 0, life: 0.4, col: '255,190,90' });
+  }
   for (const z of zombies) {
     if (z.dead) continue;
     if (Math.hypot(z.x - x, z.zAbs - zAbs) < r + z.r) damageZombie(z, dmg);
   }
   if (boss && !boss.dead && Math.hypot(boss.x - x, boss.zAbs - zAbs) < r + 1.6) damageBoss(dmg);
+  if (small) return;
   shake = Math.min(1, shake + 0.12);
   if (t - lastBoom > 0.12) { lastBoom = t; sfx.boom(); }
 }
@@ -1037,11 +1154,16 @@ function update(dt) {
         const cz = c.zAbs - dist;
         if (!c.dead && c.kind !== 'barrel' && cz > 3 && cz < 90 && Math.abs(c.x - px) < 1.8 && (!tgt || cz < tgt.z)) tgt = { x: c.x, z: cz };
       }
-      if (!tgt) tgt = pickTarget(1, Math.min(w.range - 4, 60), 6);
+      if (!tgt) tgt = pickTarget(1, w.lob ? 110 : Math.min(w.range - 4, 60), w.lob ? 30 : 6);
+      if (w.lob && !tgt) continue;             // grenadiers hold fire until there is something to hit
       const aimVx = tgt ? clamp((tgt.x - bx) / Math.max(1, (tgt.z - bz) / w.speed), -4, 4) * w.aim : 0;
       for (let c = 0; c < copies; c++) {
         const off = c === 0 ? 0 : (c % 2 ? 0.22 : -0.22), cd = c === 0 ? dmg : dmg * 0.7;
-        for (let k = 0; k < w.pellets; k++) shoot(bx + off, 1.15, bz, w, cd, aimVx + rnd(-w.spread, w.spread));
+        for (let k = 0; k < w.pellets; k++) {
+          shoot(bx + off, 1.15, bz, w, cd, aimVx + rnd(-w.spread, w.spread));
+          // lead the horde: it keeps closing in while the shell is in the air
+          if (w.lob) { const gb = bullets[bullets.length - 1]; gb.lobD = tgt ? clamp((tgt.z - bz) * w.speed / (w.speed + speed + 1.4), 6, 70) : 30; gb.lobH = 2 + gb.lobD * 0.06; }
+        }
       }
       if (flashes.length < 40) flashes.push({ x: bx, z: bz, t: 0.05 });
       sfx.shot();
@@ -1144,14 +1266,14 @@ function update(dt) {
 
   // boss
   if (boss && !boss.dead) {
-    boss.y = Math.max(0, boss.y - dt * 14); if (boss.y > 0) { if (boss.y - dt * 14 <= 0) { shake = 1; burst(boss.x, 0.3, boss.zAbs, 30, ['#c79d62', '#8b7752', '#55504a'], 6, 1, 0.2); } } else boss.zAbs -= (boss.zAbs - dist > 12 ? 4 : 1.6) * (freezeT > 0 ? 0.1 : 1) * dt;
+    boss.y = Math.max(0, boss.y - dt * 14); if (boss.y > 0) { if (boss.y - dt * 14 <= 0) { shake = 1; burst(boss.x, 0.3, boss.zAbs, 30, ['#c79d62', '#8b7752', '#55504a'], 6, 1, 0.2); } } else boss.zAbs -= (boss.zAbs - dist > 12 ? 4 : 1.6) * boss.type.speed * (freezeT > 0 ? 0.1 : 1) * dt;
     boss.ph += dt * 3; boss.fl -= dt;
     const bz = boss.zAbs - dist;
     boss.x += (px - boss.x) * dt * 0.5;
     boss.spawnT -= dt;
     if (boss.spawnT <= 0 && live) {
-      boss.spawnT = Math.max(1, 2.6 - D() * 0.2);
-      for (let i = 0; i < 4 + D() * 2; i++) zombies.push(makeZombie(Math.random() < 0.35 ? 'runner' : 'walker', clamp(boss.x + rnd(-3, 3), -4.5, 4.5), boss.zAbs - rnd(1, 3)));
+      boss.spawnT = Math.max(0.6, 2.6 - D() * 0.2) * boss.type.every;
+      for (let i = 0; i < (4 + D() * 2) * boss.type.count; i++) zombies.push(makeZombie(boss.type.minion(), clamp(boss.x + rnd(-3, 3), -4.5, 4.5), boss.zAbs - rnd(1, 3)));
     }
     const stop = (tanks.length ? tankZ + 1 : R) + 1.6;
     if (live && bz < stop) {
@@ -1175,10 +1297,17 @@ function update(dt) {
   for (const b of bullets) {
     const w = b.w;
     const z0 = b.z; b.z += w.speed * dt; b.x += b.vx * dt; b.y = Math.max(0.5, b.y + b.vy * dt); const z1 = b.z;
-    if (w.big && Math.random() < 0.5) parts.push({ x: b.x, y: b.y, zAbs: b.z - 0.4 + dist, vx: 0, vy: 1.5, vz: 0, life: 0.35, c: 'rgba(200,190,175,.6)', s: 0.14 });
+    if (w.lob) {                             // grenades arc over everything and burst where they land
+      const tr = b.z - b.z0;
+      b.y = 1.15 + Math.sin(Math.min(1, tr / b.lobD) * Math.PI) * b.lobH;
+      if (Math.random() < 0.4) parts.push({ x: b.x, y: b.y, zAbs: b.z + dist, vx: 0, vy: 0.5, vz: 0, life: 0.3, c: 'rgba(200,200,190,.5)', s: 0.12 });
+      if (tr >= b.lobD || Math.abs(b.x) > ROAD) { b.dead = true; explode(clamp(b.x, -ROAD, ROAD), b.z + dist, w.splash, b.dmg); }
+      continue;
+    }
+    if (w.big && !w.small && Math.random() < 0.5) parts.push({ x: b.x, y: b.y, zAbs: b.z - 0.4 + dist, vx: 0, vy: 1.5, vz: 0, life: 0.35, c: 'rgba(200,190,175,.6)', s: 0.14 });
     if (z1 - b.z0 > w.range || Math.abs(b.x) > ROAD) {
       b.dead = true;
-      if (w.splash && Math.abs(b.x) <= ROAD) explode(b.x, b.z + dist, w.splash, b.dmg);
+      if (w.splash && Math.abs(b.x) <= ROAD) explode(b.x, b.z + dist, w.splash, b.dmg, w.small);
       continue;
     }
     // rounds fly through gates, changing their number at a reduced rate on the way
@@ -1214,10 +1343,11 @@ function update(dt) {
       if (hit.hp <= 0) openCrate(hit);
     } else if (w.splash) {
       b.dead = true;
-      explode(b.x, hz + dist, w.splash, b.dmg);
+      explode(b.x, hz + dist, w.splash, b.dmg, w.small);
     } else if (kind === 'z') {
       const crit = Math.random() < 0.12 * pk('crit');
       if (crit) burst(b.x, 1.4, hit.zAbs, 2, ['#ffe066', '#ffffff'], 3, 0.25, 0.09);
+      if (w.chill) hit.slow = 2.5;
       if (w.burn) { hit.burn = 2; hit.burnDps = Math.max(hit.burnDps || 0, b.dmg * w.burn); }
       damageZombie(hit, b.dmg * (crit ? 3 : 1), true);
       if (b.pierce > 0) { b.pierce--; b.last = hit; }
@@ -1240,6 +1370,8 @@ function update(dt) {
     if (p.y < 0) { p.y = 0; p.vx *= 0.4; p.vz *= 0.4; p.vy = 0; }
   }
   parts = parts.filter(p => p.life > 0);
+  for (const rg of rings) rg.t += dt;
+  rings = rings.filter(rg => rg.t < rg.life);
   for (const tx of texts) tx.t += dt;
   texts = texts.filter(tx => tx.t < tx.max);
 
@@ -1562,7 +1694,7 @@ function drawWorld() {
   }
   for (const d of decals) {
     const p = proj(d.x, 0, d.zAbs - dist); if (!p) continue;
-    ctx.fillStyle = d.scorch ? 'rgba(20,18,16,.5)' : 'rgba(92,14,12,.55)';
+    ctx.fillStyle = d.scorch ? 'rgba(20,18,16,.28)' : 'rgba(92,14,12,.55)';
     ctx.beginPath(); ctx.ellipse(p[0], p[1], d.s * p[2], d.s * p[2] * 0.5, d.rot, 0, Math.PI * 2); ctx.fill();
   }
   drawEdges();
@@ -1604,12 +1736,12 @@ function drawShadow(x, z, r) {
 function drawZombie(z) {
   const set = SPR[z.type][z.v];
   const fr = Math.sin(z.ph) > 0 ? 0 : 1;
-  const img = set.n[fr];
-  drawShadow(z.x, z.z, z.r * 1.2);
+  const img = (z.flip ? set.nf : set.n)[fr];
+  drawShadow(z.x, z.z, z.r * 1.2 * z.sc);
   const p = proj(z.x, Math.abs(Math.sin(z.ph)) * 0.06, z.z); if (!p) return;
-  const h = z.h * p[2], w = h * img.width / img.height;
+  const h = z.h * z.sc * p[2], w = h * img.width / img.height;
   ctx.drawImage(img, p[0] - w / 2, p[1] - h, w, h);
-  if (z.fl > 0) { ctx.globalAlpha = z.type === 'brute' ? 0.4 : 0.8; ctx.drawImage(set.flash[fr], p[0] - w / 2, p[1] - h, w, h); ctx.globalAlpha = 1; }
+  if (z.fl > 0) { ctx.globalAlpha = z.type === 'brute' ? 0.4 : 0.8; ctx.drawImage((z.flip ? set.ff : set.flash)[fr], p[0] - w / 2, p[1] - h, w, h); ctx.globalAlpha = 1; }
   if (z.slow > 0 || freezeT > 0) { ctx.globalAlpha = 0.35; ctx.fillStyle = '#7fd0ff'; ctx.fillRect(p[0] - w * 0.3, p[1] - h * 0.15, w * 0.6, h * 0.15); ctx.globalAlpha = 1; }
   if (z.type === 'brute' && z.hp < z.max) {
     const bw = 1.2 * p[2], by = p[1] - h - 0.25 * p[2];
@@ -1652,8 +1784,11 @@ function drawCrate(c) {
   const a = proj(c.x - s, 0, z - s), b = proj(c.x + s, 0, z - s), cc = proj(c.x + s, h, z - s), d = proj(c.x - s, h, z - s);
   quad(a, b, cc, d, fl ? '#ffe9c4' : cFront);
   if (!a || !cc) return;
-  ctx.strokeStyle = '#6e4a22'; ctx.lineWidth = Math.max(1, 0.06 * a[2]);
+  ctx.strokeStyle = cEdge === '#3a2610' ? '#6e4a22' : 'rgba(0,0,0,.35)'; ctx.lineWidth = Math.max(1, 0.06 * a[2]);
   ctx.strokeRect(d[0], d[1], cc[0] - d[0], a[1] - d[1]);
+  ctx.globalAlpha = 0.35;
+  for (const f of [0.33, 0.66]) { const yy = d[1] + (a[1] - d[1]) * f; ctx.beginPath(); ctx.moveTo(d[0], yy); ctx.lineTo(cc[0], yy); ctx.stroke(); }
+  ctx.globalAlpha = 1;
   ctx.beginPath(); ctx.moveTo(d[0], d[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
   const m = proj(c.x, h * 0.5, z - s), top = proj(c.x, h + 0.5, z);
   const la = labelAlpha(z, 95);
@@ -1678,10 +1813,18 @@ function drawGate(g) {
   const good = g.op === '+' || g.op === '×';
   const bl = proj(x0, 0, z), br = proj(x1, 0, z), tr = proj(x1, H2, z), tl = proj(x0, H2, z);
   if (!bl || !tr) return;
-  const lit = g.hitT > 0;
-  quad(bl, br, tr, tl, good ? (lit ? 'rgba(130,180,255,.62)' : 'rgba(63,140,255,.48)') : (lit ? 'rgba(255,140,120,.62)' : 'rgba(210,56,44,.5)'));
-  ctx.strokeStyle = good ? '#cfe2ff' : '#ffc2b8'; ctx.lineWidth = Math.max(2, 0.1 * bl[2]);
-  ctx.beginPath(); ctx.moveTo(bl[0], bl[1]); ctx.lineTo(tl[0], tl[1]); ctx.lineTo(tr[0], tr[1]); ctx.lineTo(br[0], br[1]); ctx.stroke();
+  const lit = g.hitT > 0, rgb = good ? '63,140,255' : '210,56,44';
+  const gr = ctx.createLinearGradient(0, tl[1], 0, bl[1]);
+  gr.addColorStop(0, `rgba(${rgb},${lit ? 0.45 : 0.25})`); gr.addColorStop(0.55, `rgba(${rgb},${lit ? 0.7 : 0.5})`); gr.addColorStop(1, `rgba(${rgb},${lit ? 0.85 : 0.68})`);
+  quad(bl, br, tr, tl, gr);
+  // glossy highlight across the upper part
+  const hl = proj(x0, H2 * 0.82, z), hr = proj(x1, H2 * 0.82, z);
+  quad(tl, tr, hr, hl, 'rgba(255,255,255,.16)');
+  ctx.lineJoin = 'round';
+  for (const [col, lw] of [[`rgba(${rgb},.45)`, 0.32], [good ? '#d8e8ff' : '#ffd0c8', 0.09]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = Math.max(lw > 0.2 ? 4 : 2, lw * bl[2]);
+    ctx.beginPath(); ctx.moveTo(bl[0], bl[1]); ctx.lineTo(tl[0], tl[1]); ctx.lineTo(tr[0], tr[1]); ctx.lineTo(br[0], br[1]); ctx.stroke();
+  }
   const m = proj((x0 + x1) / 2, H2 * 0.55, z);
   const la = labelAlpha(z, 120);
   if (la <= 0) return;
@@ -1699,11 +1842,11 @@ function drawBoss(b) {
   const z = b.zAbs - dist;
   drawShadow(b.x, z, 2);
   const fr = Math.sin(b.ph) > 0 ? 0 : 1;
-  const img = BOSS[fr];
+  const spr = BOSS_SPR[b.type.id], img = spr.n[fr];
   const p = proj(b.x, b.y || 0, z); if (!p) return;
-  const h = 5.2 * p[2], w = h * img.width / img.height;
+  const h = b.type.h * p[2], w = h * img.width / img.height;
   ctx.drawImage(img, p[0] - w / 2, p[1] - h, w, h);
-  if (b.fl > 0) { ctx.globalAlpha = 0.3; ctx.drawImage(BOSS.flash[fr], p[0] - w / 2, p[1] - h, w, h); ctx.globalAlpha = 1; }
+  if (b.fl > 0) { ctx.globalAlpha = 0.3; ctx.drawImage(spr.flash[fr], p[0] - w / 2, p[1] - h, w, h); ctx.globalAlpha = 1; }
 }
 
 function drawTank(tank) {
@@ -1850,6 +1993,19 @@ function draw() {
     const gr = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r);
     gr.addColorStop(0, 'rgba(255,230,160,.9)'); gr.addColorStop(1, 'rgba(255,120,30,0)');
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,240,200,.8)'; ctx.lineWidth = 1.2; ctx.beginPath();
+    ctx.moveTo(p[0], p[1] - r * 1.4); ctx.lineTo(p[0], p[1] + r * 0.5); ctx.moveTo(p[0] - r * 0.8, p[1]); ctx.lineTo(p[0] + r * 0.8, p[1]); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // shockwaves: an expanding ring on the ground and a burst of light
+  ctx.globalCompositeOperation = 'lighter';
+  for (const rg of rings) {
+    const q = proj(rg.x, 0, rg.zAbs - dist); if (!q) continue;
+    const f = rg.t / rg.life, rr2 = rg.r * (0.3 + f) * q[2];
+    ctx.strokeStyle = `rgba(${rg.col},${(1 - f) * 0.8})`; ctx.lineWidth = Math.max(1.5, 0.18 * q[2] * (1 - f));
+    ctx.beginPath(); ctx.ellipse(q[0], q[1], rr2, rr2 * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
+    if (f < 0.5) { const gr2 = rg.r * 1.4 * q[2]; ctx.globalAlpha = (0.5 - f) * 1.6; ctx.drawImage(GLOW, q[0] - gr2, q[1] - gr2 * 1.2, gr2 * 2, gr2 * 2); ctx.globalAlpha = 1; }
   }
   ctx.globalCompositeOperation = 'source-over';
 
@@ -1934,7 +2090,7 @@ function updateHud() {
   if (kills !== hudK) { hudK = kills; $('hudKills').textContent = kills; }
   if (boss) {
     $('bossFill').style.width = `${boss.hp / boss.max * 100}%`;
-    $('bossHp').textContent = Math.ceil(boss.hp);
+    $('bossHp').textContent = `${boss.type.name} · ${Math.ceil(boss.hp)}`;
   }
 }
 // side panel: what is currently boosting the squad; only touches the DOM when the list changes
@@ -2159,7 +2315,7 @@ function boot(data) {
   requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
 }
 
-window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => pickKind === 'gun' ? chooseGun(i % 2) : choosePerk(i), pickKind: () => pickKind, perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), mission: () => ({ surv: survivors.filter(s => s.state === 'wait').map(s => ({ x: s.x, z: s.zAbs - dist })), id: mission && mission.id, vip: vip && Math.round(vip.hp), holdT: Math.round(holdT), rescued, lostSurv, fail: failReason }), theme: () => TH.name + (twist ? ' / ' + twist.id : ''), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: helis.length && helis.map(h => Math.round(h.hp)).join('/'), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
+window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => pickKind === 'gun' ? chooseGun(i % 2) : choosePerk(i), pickKind: () => pickKind, perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), bossNow: () => { bossPhase = true; spawnBoss(); }, give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), mission: () => ({ surv: survivors.filter(s => s.state === 'wait').map(s => ({ x: s.x, z: s.zAbs - dist })), id: mission && mission.id, vip: vip && Math.round(vip.hp), holdT: Math.round(holdT), rescued, lostSurv, fail: failReason }), theme: () => TH.name + (twist ? ' / ' + twist.id : ''), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: helis.length && helis.map(h => Math.round(h.hp)).join('/'), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
 window.claude?.hot?.snapshot?.(() => ({ level }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 })();

@@ -27,7 +27,9 @@ controls, safe-area insets, home-screen mode). It also works on desktop
     range and crowd bars, and you pick which to keep): **SMG** (fast, sprays), **SHOTGUN** (6-pellet blast, short range),
     **LASER** (pierces a line of zombies), **ROCKETS** (slow, splash damage),
     **MINIGUN** (very fast, light rounds), **FLAMER** (short range, sets zombies on fire),
-    **RAILGUN** (slow, pierces everything in its path), **TESLA** (lightning chains to 3 more zombies).
+    **RAILGUN** (slow, pierces everything in its path), **TESLA** (lightning chains to 3 more zombies),
+    **SNIPER** (slow, huge piercing hits), **GRENADES** (lobbed shells, wide blast),
+    **PLASMA** (bolts that burst on impact), **CRYO** (icy stream that slows zombies).
   - **FIRE+**: +30% fire rate for the whole squad (stacks 4 times).
   - **+N**: extra soldiers.
   - **TANK**: a tank drives in front of the squad, shells the horde and takes the bites
@@ -62,6 +64,8 @@ controls, safe-area insets, home-screen mode). It also works on desktop
   60 seconds of growing hordes with airdrops and reinforcements, then the boss) and
   **Rescue survivors** (pick up at least 5 of 10 survivors before zombies reach them;
   each adds 3 soldiers). Completing a mission pays bonus coins.
+- Bosses rotate by level: **Mutant King**, **Bloater** (slow, tough, calls spitters), **Bone Colossus**
+  (charges fast, calls brutes) and **Hive Queen** (swarms of runners). The boss bar shows its name.
 - Each level ends with a boss that drops onto the road, calls in more zombies and
   charges the squad. Its health scales with your firepower, so it always reaches you.
 - Levels get longer, hordes bigger, zombies tougher and brutes more common.
