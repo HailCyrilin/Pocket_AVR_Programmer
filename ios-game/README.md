@@ -57,6 +57,17 @@ controls, safe-area insets, home-screen mode). It also works on desktop
   charges the squad. Its health scales with your firepower, so it always reaches you.
 - Levels get longer, hordes bigger, zombies tougher and brutes more common.
 
+## Saving
+
+Progress saves automatically when you clear a level and when you buy an upgrade: the level
+to continue from, your best level, coins and upgrades. The title screen offers
+**Continue · level N** and a **Start at level** picker for any level you have reached.
+Quitting mid-level restarts that level.
+
+The save is kept in the browser (`localStorage`). When the game runs as a claude.ai
+artifact and you are signed in, it is also kept in your private slot of the artifact's
+database, so it follows you between devices.
+
 ## Files
 
 - `game.html`: the game source (page body, styles and script).

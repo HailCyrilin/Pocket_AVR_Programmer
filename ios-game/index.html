@@ -111,6 +111,12 @@ body{
 .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #a9851a}
 .best{font-size:15px!important;letter-spacing:.06em;text-transform:uppercase}
 .tag.drop{background:var(--epic)}
+.start-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:600;font-size:17px;color:var(--muted)}
+.start-row select{
+  font:400 17px/1 var(--display);color:var(--ink);background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 10px;min-width:96px;
+}
+.start-row select:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
 .banner{
   position:fixed;left:50%;top:32%;transform:translate(-50%,-50%);display:grid;gap:6px;justify-items:center;
   padding:14px 22px;border-radius:12px;background:var(--panel);pointer-events:none;text-align:center;
@@ -182,7 +188,11 @@ body{
     </ul>
     <p>Drag anywhere to steer. Your squad fires on its own. Kill the boss at the end of the road.</p>
     <button id="btnPlay" class="btn" type="button">Play</button>
-    <p class="best">Best: level <span id="bestLvl">1</span></p>
+    <div class="start-row" id="startRow" hidden>
+      <label for="lvlPick">Start at level</label>
+      <select id="lvlPick"></select>
+    </div>
+    <p class="best">Best: level <span id="bestLvl">1</span> · <span id="saveNote">Progress saves in this browser</span></p>
   </div>
 </div>
 
@@ -197,6 +207,7 @@ body{
     </div>
     <div class="shop" id="shopWin"></div>
     <button id="btnNext" class="btn" type="button">Next level</button>
+    <p class="best" id="winSaved">Progress saved</p>
   </div>
 </div>
 
@@ -540,7 +551,7 @@ const UPGRADES = [
 const META_MAX = 10;
 let meta = { coins: 0, squad: 0, power: 0, salvage: 0 };
 try { Object.assign(meta, JSON.parse(localStorage.getItem('hh-meta') || '{}')); } catch (e) {}
-const saveMeta = () => { try { localStorage.setItem('hh-meta', JSON.stringify(meta)); } catch (e) {} };
+const saveMeta = () => saveGame();
 const upCost = id => Math.round(40 * Math.pow(meta[id] + 1, 1.5));
 
 try { best = Math.max(1, parseInt(localStorage.getItem('hh-best') || '1', 10) || 1); } catch (e) {}
@@ -1739,6 +1750,75 @@ function renderShop() {
     }
   }
 }
+/* ---------- save game ----------
+   One save object: the level to continue from, best level, coins and upgrades.
+   It is written to this browser right away and, when the viewer is signed in,
+   to their private slot in the artifact's database (data/users/<id>/progress),
+   so it follows them to other devices. Mid-level progress is not saved. */
+let saveRef = null, saveTimer = 0, saveChain = Promise.resolve(), localSaveAt = 0;
+const saveData = () => ({ v: 1, level, best, meta: { coins: meta.coins, squad: meta.squad, power: meta.power, salvage: meta.salvage }, savedAt: Date.now() });
+function applySave(d) {
+  if (!d || typeof d.level !== 'number') return false;
+  level = clamp(Math.floor(d.level), 1, 9999);
+  best = Math.max(1, Math.floor(d.best) || 1, level);
+  if (d.meta) for (const k of ['coins', 'squad', 'power', 'salvage']) if (typeof d.meta[k] === 'number') meta[k] = Math.max(0, Math.floor(d.meta[k]));
+  return true;
+}
+function setSaveNote(kind) {
+  $('saveNote').textContent = kind === 'cloud' ? 'Progress saves to your Claude account' : kind === 'saving' ? 'Saving…' : 'Progress saves in this browser';
+  $('winSaved').textContent = kind === 'saving' ? 'Saving…' : kind === 'cloud' ? 'Progress saved to your account' : 'Progress saved in this browser';
+}
+function saveGame() {
+  const d = saveData();
+  try { localStorage.setItem('hh-save', JSON.stringify(d)); localSaveAt = d.savedAt; } catch (e) {}
+  if (!saveRef) { setSaveNote('local'); return; }
+  setSaveNote('saving');
+  // one cloud write at a time, coalesced over half a second
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveChain = saveChain.then(() => saveRef.set(saveData())).then(() => setSaveNote('cloud'), () => setSaveNote('local'));
+  }, 500);
+}
+function refreshTitle() {
+  $('bestLvl').textContent = best;
+  $('btnPlay').textContent = level > 1 ? `Continue · level ${level}` : 'Play';
+  const sel = $('lvlPick');
+  $('startRow').hidden = best <= 1;
+  if (sel.options.length !== best) {
+    sel.textContent = '';
+    for (let i = 1; i <= best; i++) { const o = document.createElement('option'); o.value = o.textContent = String(i); sel.appendChild(o); }
+  }
+  sel.value = String(level);
+}
+function attractScene() {
+  startLevel();
+  dist = 28;
+  for (const z of zombies) z.z = z.zAbs - dist;
+}
+async function connectCloudSave() {
+  const c = window.claude;
+  if (!c || !c.use) return;
+  const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
+  const id = user ? await user.id() : null;
+  if (!db || !id) return;
+  const ref = db.doc(`data/users/${id}/progress`);
+  try {
+    const snap = await ref.get();
+    const remote = snap.exists ? snap.data() : null;
+    if (remote && remote.savedAt > localSaveAt && state === 'title') {
+      applySave(remote);
+      try { localStorage.setItem('hh-save', JSON.stringify(remote)); localSaveAt = remote.savedAt; } catch (e) {}
+      refreshTitle(); attractScene();
+    } else if (!remote || localSaveAt > remote.savedAt) {
+      await ref.set(saveData());
+    }
+    saveRef = ref;
+    setSaveNote('cloud');
+  } catch (e) {
+    setSaveNote('local');
+  }
+}
+
 function earn(n) { meta.coins += n; saveMeta(); renderShop(); return n; }
 function win() {
   state = 'won';
@@ -1746,6 +1826,7 @@ function win() {
   $('winCoins').textContent = '+' + earn(Math.round(kills / 4) + 20 * level + Math.floor(N / 10));
   level++;
   if (level > best) { best = level; try { localStorage.setItem('hh-best', String(best)); } catch (e) {} }
+  saveGame();
   setTimeout(() => { if (state === 'won') showOnly('ovWin'); }, 300);
 }
 function lose() {
@@ -1757,6 +1838,10 @@ function lose() {
 }
 
 $('btnPlay').addEventListener('click', play);
+$('lvlPick').addEventListener('change', e => {
+  level = clamp(parseInt(e.target.value, 10) || 1, 1, best);
+  saveGame(); refreshTitle(); attractScene();
+});
 $('btnNext').addEventListener('click', play);
 $('btnRetry').addEventListener('click', play);
 $('mute').addEventListener('click', () => {
@@ -1805,14 +1890,17 @@ function frame(ts) {
 }
 
 function boot(data) {
+  // older versions only stored the best level: continue from there
+  let local = null;
+  try { local = JSON.parse(localStorage.getItem('hh-save') || 'null'); } catch (e) {}
+  if (applySave(local)) localSaveAt = local.savedAt || 0;
+  else level = best;
   if (data && data.level > 0) level = data.level;
   resize();
   buildSprites();
-  startLevel();
-  dist = 28;                                     // attract scene: first wave in view
-  for (const z of zombies) z.z = z.zAbs - dist;
-  $('bestLvl').textContent = best;
-  if (level > 1) $('btnPlay').textContent = `Play level ${level}`;
+  attractScene();                                // title backdrop: first wave in view
+  refreshTitle();
+  connectCloudSave();
   requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
 }
 
