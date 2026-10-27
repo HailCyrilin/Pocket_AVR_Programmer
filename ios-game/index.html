@@ -3209,9 +3209,12 @@ const COLS = 5, ROWS = 8, SLOTS = 10;           // 5 columns of rock; 2 rows of 
 const zDps = L => 2 * Math.pow(2.15, L - 1);              // dig power per second of a level-L zombie
 const blockHp = l => 4 * Math.pow(2.1, l - 1);
 const blockCoins = l => 2.5 * Math.pow(1.9, l - 1);
-const spawnLevel = () => Math.max(1, best - 5);           // the shop sells zombies a few levels below your best
+// the shop's level goes up after every BUYS_PER_LEVEL zombies bought there; it never sells above your best
+// zombie (merging is how you beat your best) and never falls more than 6 levels behind it
+const BUYS_PER_LEVEL = 8;
+const spawnLevel = () => clamp(shopLv, Math.max(1, best - 6), best);
 // price rises with each zombie bought at the current shop level, and resets when the shop level goes up
-const buyCost = () => 25 * Math.pow(2.3, spawnLevel() - 1) * Math.pow(1.12, buys);
+const buyCost = () => 25 * Math.pow(2.4, spawnLevel() - 1) * Math.pow(1.08, buys);
 const chestCost = () => Math.round(30 * Math.pow(1.3, chests));
 // with a full yard, buying swaps out your weakest zombie if it is below the shop level
 function swapSlot() {
@@ -3221,7 +3224,7 @@ function swapSlot() {
 }
 
 /* ---------- state ---------- */
-let coins = 20, gems = 0, potions = 1, floor = 1, best = 1, buys = 0, chests = 0, boostT = 0, lastSeen = Date.now();
+let coins = 20, gems = 0, potions = 1, floor = 1, best = 1, shopLv = 1, buys = 0, chests = 0, boostT = 0, lastSeen = Date.now();
 let blocks = [];           // ROWS × COLS; row 0 is the bottom row, nearest the yard
 let yard = new Array(SLOTS).fill(0);   // zombie level per slot, 0 = empty
 let parts = [], texts = [], swing = new Array(SLOTS).fill(0), t = 0, banner = null;
@@ -3257,7 +3260,7 @@ function addZombie(L) {
   const i = freeSlot(); if (i < 0) return false;
   yard[i] = L; setBest(L); return true;
 }
-function setBest(L) { if (L > best) { best = L; buys = 0; } }
+function setBest(L) { best = Math.max(best, L); }
 function damage(r, c, dmg) {
   const b = blocks[r][c]; if (b.hp <= 0) return;
   b.hp -= dmg; b.fl = 0.08;
@@ -3294,8 +3297,11 @@ function buy() {
   const cost = buyCost();
   const free = freeSlot(), slot = free >= 0 ? free : swapSlot();
   if (coins < cost || slot < 0) return false;
-  coins -= cost; buys++;
-  yard[slot] = spawnLevel();
+  coins -= cost;
+  const L = spawnLevel();
+  yard[slot] = L; setBest(L);
+  if (L !== shopLv) { shopLv = L; buys = 0; }      // the shop caught up with (or was held back by) your best zombie
+  if (++buys >= BUYS_PER_LEVEL && shopLv < best) { shopLv++; buys = 0; }
   return true;
 }
 function boost() { if (potions < 1) return; potions--; boostT += 60; }
@@ -3494,7 +3500,7 @@ function updateHud() {
   $('zmDps').textContent = fmt(totalDps()) + '/s';
   const cost = buyCost(), full = freeSlot() < 0, sw = full ? swapSlot() : -1;
   $('zmBuy').innerHTML = full && sw < 0 ? `<b>Yard full</b><span>Merge!</span>`
-    : `<b>${full ? `Swap lv ${yard[sw]}→${spawnLevel()}` : `Buy lv ${spawnLevel()}`}</b><span>${fmt(cost)}</span>`;
+    : `<b>${full ? `Swap lv ${yard[sw]}→${spawnLevel()}` : `Buy lv ${spawnLevel()}`}</b><span>${fmt(cost)}${spawnLevel() < best ? ` · ${Math.min(buys, BUYS_PER_LEVEL - 1)}/${BUYS_PER_LEVEL}` : ''}</span>`;
   $('zmBuy').disabled = (full && sw < 0) || coins < cost;
   $('zmBoost').innerHTML = boostT > 0 ? `<b>×2 dig</b><span>${Math.ceil(boostT)}s</span>` : `<b>Boost ×2</b><span>${potions} potion${potions === 1 ? '' : 's'}</span>`;
   $('zmBoost').disabled = potions < 1;
@@ -3544,12 +3550,12 @@ cvs.addEventListener('pointercancel', () => { drag.active = false; drag.from = -
 /* ---------- saving & idle earnings ---------- */
 let saveRef = null, localAt = 0, lastCloud = 0;
 function data() {
-  return { v: 1, coins, gems, potions, floor, best, buys, chests, yard: [...yard],
+  return { v: 1, coins, gems, potions, floor, best, shopLv, buys, chests, yard: [...yard],
     blocks: blocks.map(row => row.map(b => [b.l, b.kind, Math.max(0, Math.round(b.hp * 100) / 100), b.max])), lastSeen: Date.now(), savedAt: Date.now() };
 }
 function apply(d) {
   if (!d || typeof d.floor !== 'number') return false;
-  coins = +d.coins || 0; gems = +d.gems || 0; potions = +d.potions || 0; floor = d.floor; best = d.best || 1; buys = d.buys || 0; chests = d.chests || 0;
+  coins = +d.coins || 0; gems = +d.gems || 0; potions = +d.potions || 0; floor = d.floor; best = d.best || 1; shopLv = d.shopLv || Math.max(1, best - 5); buys = d.shopLv ? d.buys || 0 : 0; chests = d.chests || 0;
   yard = Array.isArray(d.yard) && d.yard.length === SLOTS ? d.yard.map(x => +x || 0) : yard;
   if (Array.isArray(d.blocks) && d.blocks.length === ROWS) blocks = d.blocks.map(row => row.map(([l, kind, hp, max]) => ({ l, kind, hp, max, fl: 0 })));
   else makeFloor();
@@ -3617,8 +3623,8 @@ window.zm = { enter, leave, label: hubLabel };
 // test hooks
 window.__zm = {
   tick: (dt) => update(dt), buy, boost, merge, gemChest,
-  get: () => ({ coins, gems, potions, floor, best, buys, chests, yard: [...yard], dps: totalDps(), cost: buyCost(), left: blocks.flat().filter(b => b.hp > 0).length }),
-  reset: () => { coins = 20; gems = 0; potions = 1; floor = 1; best = 1; buys = 0; chests = 0; boostT = 0; yard = new Array(SLOTS).fill(0); yard[5] = 1; yard[7] = 1; makeFloor(); },
+  get: () => ({ coins, gems, potions, floor, best, shopLv, buys, chests, yard: [...yard], dps: totalDps(), cost: buyCost(), left: blocks.flat().filter(b => b.hp > 0).length }),
+  reset: () => { coins = 20; gems = 0; potions = 1; floor = 1; best = 1; shopLv = 1; buys = 0; chests = 0; boostT = 0; yard = new Array(SLOTS).fill(0); yard[5] = 1; yard[7] = 1; makeFloor(); },
 };
 })();
 </script>

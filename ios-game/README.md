@@ -43,8 +43,11 @@ rocks above it drop down.
 - **Merge:** drag a zombie onto another of the same level to make one a level higher, which
   digs a little over twice as fast. Drag onto an empty slot to move it.
 - **Tap a rock** to help dig.
-- **Buy** a zombie a few levels below your best; the price rises with each one you buy at
-  that level. When the yard is full, Buy swaps out your weakest zombie instead.
+- **Buy** a zombie from the shop. After every 8 zombies you buy, the shop moves up a level:
+  8 level-1 zombies, then level 2, then level 3, and so on. The button shows the count (e.g.
+  `3/8`). The shop never sells above your best zombie, and never falls more than 6 levels
+  behind it. The price rises with each buy and resets when the shop levels up. When the yard
+  is full, Buy swaps out your weakest zombie instead.
 - **Special rocks:** gold rocks pay triple, red rocks give gems, green rocks give a potion,
   and chests give a free zombie.
 - **Boost ×2** uses a potion to double digging speed for 60 seconds. **Gem chest** spends
