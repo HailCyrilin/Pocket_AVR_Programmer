@@ -113,7 +113,7 @@ body{
     <h1>Horde <span>Highway</span></h1>
     <ul class="rules">
       <li><span class="tag good">+5 ×2</span>Drive through blue gates to grow your squad.</li>
-      <li><span class="tag bad">−8 ÷2</span>Avoid red gates, or shoot them until they turn blue.</li>
+      <li><span class="tag bad">−8 ÷2</span>Avoid red gates, or shoot them until they turn blue. Bullets fly through gates.</li>
       <li><span class="tag crate">CRATE</span>Shoot crates for new guns, a tank or a helicopter.</li>
     </ul>
     <p>Drag anywhere to steer. Your squad fires on its own. Kill the boss at the end of the road.</p>
@@ -438,7 +438,7 @@ function makeZombie(type, x, zAbs) {
 }
 function makeWave(pos, big) {
   const frac = pos / L;
-  let n = Math.round((12 + D() * 6) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
+  let n = Math.round((15 + D() * 6) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
   n = Math.min(pos < 70 ? 6 + D() : 200, n);
   const depth = 3 + n * 0.05;
   const pBrute = pos < 70 ? 0 : Math.min(0.16, 0.03 * D()), pRunner = Math.min(0.3, 0.1 + 0.03 * D());
@@ -589,7 +589,7 @@ function pickTarget(zMin, zMax, tries) {
   return tgt;
 }
 function shoot(x, y, z, w, dmg, vx, vy) {
-  bullets.push({ x, y, z, vx, vy: vy || 0, dmg, w, z0: z, pierce: w.pierce, last: null, dead: false });
+  bullets.push({ x, y, z, vx, vy: vy || 0, dmg, w, z0: z, pierce: w.pierce, last: null, gate: null, dead: false });
 }
 const SHELL = { name: 'SHELL', speed: 36, range: 60, pierce: 0, splash: 2, col: '#ffcc66', len: 0.6, big: true };
 const HROCKET = { name: 'ROCKET', speed: 34, range: 62, pierce: 0, splash: 1.4, col: '#ff8a3a', len: 0.6, big: true };
@@ -750,12 +750,16 @@ function update(dt) {
       if (w.splash && Math.abs(b.x) <= ROAD) explode(b.x, b.z + dist, w.splash, b.dmg);
       continue;
     }
-    let hit = null, hz = 1e9, kind = null;
+    // rounds fly through gates, changing their number at a reduced rate on the way
     for (const g of gates) {
-      if (g.done) continue;
+      if (g.done || g === b.gate) continue;
       const gz = g.zAbs - dist;
-      if (gz >= z0 - 0.2 && gz <= z1 && (b.x < 0 ? -1 : 1) === g.side && gz < hz) { hit = g; hz = gz; kind = 'gate'; }
+      if (gz >= z0 - 0.2 && gz <= z1 && (b.x < 0 ? -1 : 1) === g.side) {
+        b.gate = g; hitGate(g, b.dmg * 0.35);
+        if (Math.random() < 0.15) burst(b.x, 1.2, g.zAbs, 1, ['#cfe2ff', '#ffffff'], 2, 0.25, 0.07);
+      }
     }
+    let hit = null, hz = 1e9, kind = null;
     for (const c of crates) {
       if (c.dead) continue;
       const cz = c.zAbs - dist;
@@ -770,11 +774,7 @@ function update(dt) {
       if (bz >= z0 - 1 && bz <= z1 + 1 && Math.abs(b.x - boss.x) < 1.7 && bz < hz) { hit = boss; hz = bz; kind = 'boss'; }
     }
     if (!hit) continue;
-    if (kind === 'gate') {
-      b.dead = true;
-      hitGate(hit, b.dmg);
-      if (Math.random() < 0.3) burst(b.x, 1.2, hit.zAbs, 1, ['#cfe2ff', '#ffffff'], 2, 0.25, 0.07);
-    } else if (kind === 'crate') {
+    if (kind === 'crate') {
       b.dead = true;
       hit.hp -= b.dmg; hit.fl = 0.06;
       if (hit.hp <= 0) openCrate(hit);
