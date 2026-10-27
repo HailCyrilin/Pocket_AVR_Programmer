@@ -17,7 +17,8 @@ controls, safe-area insets, home-screen mode). It also works on desktop
 ## How it plays
 
 - **Drag** anywhere to steer. The squad fires on its own and aims at the closest zombies.
-- **Blue gates** (`+N`, `×2`) grow the squad; **red gates** (`−N`, `÷2`) shrink it.
+- **Blue gates** (`+N`, `×2`) grow the squad; bigger multipliers unlock later (`×3` from level 8,
+  `×4` from 14, `×5` from 20), and shooting a multiplier gate long enough raises it a step; **red gates** (`−N`, `÷2`) shrink it.
   Bullets fly through gates and change their number on the way: a `−` gate counts down
   fast until it flips to `+`, a `+` gate counts up more slowly. Most pairs have a bad side;
   a double-red pair never opens a level and always has one side that is quick to flip.

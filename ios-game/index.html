@@ -598,8 +598,14 @@ function makeWave(pos, big, mul = 1) {
     crates.push({ kind: 'barrel', label: '', x: rnd(-4, 4), zAbs: pos + rnd(0, depth), hp, max: hp, fl: 0, dead: false });
   }
 }
+// later levels unlock bigger multipliers so the squad can keep pace with the hordes
+const maxMult = () => level >= 20 ? 5 : level >= 14 ? 4 : level >= 8 ? 3 : 2;
+const plusCap = () => Math.max(60 + level * 6, Math.round(N * 0.5));
 function makeGates(pos) {
-  const good = () => Math.random() < 0.2 ? { op: '×', v: 2 } : Math.random() < 0.3 ? { op: '+', v: ri(1, 3) } : { op: '+', v: ri(3, 6) + level * 2 };
+  const multP = level >= 8 ? 0.28 : 0.2;
+  const good = () => Math.random() < multP ? { op: '×', v: ri(2, maxMult()) }
+    : Math.random() < 0.3 ? { op: '+', v: ri(1, 3) }
+    : { op: '+', v: ri(3, 6) + level * 2 + Math.max(0, level - 10) * 3 };
   const bad = () => pick([{ op: '−', v: ri(5, 10) + Math.round(D() * 2) }, { op: '÷', v: 2 }, { op: '−', v: ri(3, 6) + Math.round(D()) }]);
   const mild = () => ({ op: '−', v: ri(2, 4) + Math.round(D() / 2) });
   const r = Math.random();
@@ -650,7 +656,7 @@ function startLevel() {
   mission = level % 3 === 0 ? MISSIONS[(level / 3 - 1) % MISSIONS.length] : null;
   twist = !mission && level >= 2 ? pick(TWISTS.filter(x => !x.min || level >= x.min)) : null;
   vip = null; holdT = 0; waveT = 2; airdropT = 6; reinfT = 12; survivors = []; rescued = 0; lostSurv = 0; failReason = '';
-  dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3 + 2 * meta.squad; px = 0; targetPx = 0; camX = 0; kills = 0;
+  dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3 + Math.max(0, level - 10) * 3 + 2 * meta.squad; px = 0; targetPx = 0; camX = 0; kills = 0;
   fireLvl = 1; weapon = 'rifle'; tanks = []; helis = []; spits = [];
   perks = {}; dropNo = 0; drops = [L * 0.34, L * 0.68]; pendingBooms = []; shieldT = 0; freezeT = 0; flashT = 0;
   zombies = []; bullets = []; gates = []; crates = []; parts = []; decals = []; texts = []; flashes = [];
@@ -742,13 +748,15 @@ function explode(x, zAbs, r, dmg) {
 }
 function hitGate(g, dmg) {
   g.hitT = 0.08;
-  if (g.op === '×' || g.op === '÷') return;
+  if (g.op === '÷' || (g.op === '×' && g.v >= maxMult())) return;
   g.acc += dmg;
-  // red gates count down faster than blue ones count up, so a bad pair can be fixed in time
-  const step = Math.max(2 + D() * 0.5, N * 0.05) * (g.op === '+' ? 2 : 1);
+  // red gates count down faster than blue ones count up, so a bad pair can be fixed in time;
+  // a multiplier climbs one step (×2 → ×3) for a long burst of fire
+  const step = Math.max(2 + D() * 0.5, N * 0.05) * (g.op === '+' ? 2 : g.op === '×' ? 40 : 1);
   while (g.acc >= step) {
     g.acc -= step; g.pop = 1;
-    if (g.op === '+') g.v = Math.min(60, g.v + 1);
+    if (g.op === '×') { g.v = Math.min(maxMult(), g.v + 1); if (g.v >= maxMult()) break; }
+    else if (g.op === '+') g.v = Math.min(plusCap(), g.v + 1);
     else if (--g.v <= 0) { g.op = '+'; g.v = 0; }
   }
 }
