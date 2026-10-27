@@ -200,7 +200,7 @@ const $ = id => document.getElementById(id);
 const ROAD = 5;                 // half-width of the road, world units
 const CAM_H = 16, CAM_BACK = 12;
 const PITCH = 40 * Math.PI / 180, COS = Math.cos(PITCH), SIN = Math.sin(PITCH);
-const FAR = 84, NEAR = -7;
+const FAR = 125, NEAR = -7;  // FAR is the horizon: rounds fly until they reach it
 const ZC0 = CAM_H * SIN + CAM_BACK * COS;   // camera depth of the squad's spot
 const YC0 = -CAM_H * COS + CAM_BACK * SIN;
 let W = 0, H = 0, DPR = 1, FOC = 1, CX = 0, CY = 0, KP = 1;
@@ -450,11 +450,11 @@ const squadR = n => 0.42 * Math.sqrt(n) + 0.25;
 
 // rate: shots per soldier per second; dmg: damage per pellet; pierce: extra zombies a round passes through
 const WEAPONS = {
-  rifle:   { name: 'RIFLE',   rate: 2.8,  dmg: 1,    pellets: 1, spread: 0.3, aim: 1,   speed: 48, range: 60, pierce: 0, splash: 0,   col: '#ffd59a', len: 1.3 },
-  smg:     { name: 'SMG',     rate: 6,    dmg: 0.5,  pellets: 1, spread: 1.6, aim: 0.8, speed: 52, range: 46, pierce: 0, splash: 0,   col: '#fff3a0', len: 1.0 },
-  shotgun: { name: 'SHOTGUN', rate: 1,    dmg: 0.7,  pellets: 6, spread: 5,   aim: 0.4, speed: 44, range: 24, pierce: 1, splash: 0,   col: '#ffb070', len: 0.8 },
-  laser:   { name: 'LASER',   rate: 2,    dmg: 1.1,  pellets: 1, spread: 0.1, aim: 1,   speed: 85, range: 64, pierce: 5, splash: 0,   col: '#7ff0ff', len: 3.2 },
-  rocket:  { name: 'ROCKETS', rate: 0.55, dmg: 2.4,  pellets: 1, spread: 0.4, aim: 1,   speed: 30, range: 62, pierce: 0, splash: 1.5, col: '#ff8a3a', len: 0.5, big: true },
+  rifle:   { name: 'RIFLE',   rate: 2.8,  dmg: 1,    pellets: 1, spread: 0.3, aim: 1,   speed: 48, range: 120, pierce: 0, splash: 0,   col: '#ffd59a', len: 1.3 },
+  smg:     { name: 'SMG',     rate: 6,    dmg: 0.5,  pellets: 1, spread: 1.6, aim: 0.8, speed: 52, range: 120, pierce: 0, splash: 0,   col: '#fff3a0', len: 1.0 },
+  shotgun: { name: 'SHOTGUN', rate: 1,    dmg: 0.7,  pellets: 6, spread: 5,   aim: 0.4, speed: 44, range: 40, pierce: 1, splash: 0,   col: '#ffb070', len: 0.8 },
+  laser:   { name: 'LASER',   rate: 2,    dmg: 1.1,  pellets: 1, spread: 0.1, aim: 1,   speed: 85, range: 120, pierce: 5, splash: 0,   col: '#7ff0ff', len: 3.2 },
+  rocket:  { name: 'ROCKETS', rate: 0.55, dmg: 2.4,  pellets: 1, spread: 0.4, aim: 1,   speed: 30, range: 120, pierce: 0, splash: 1.5, col: '#ff8a3a', len: 0.5, big: true },
 };
 const GUNS = ['smg', 'shotgun', 'laser', 'rocket'];
 const CRATE_LABEL = { fire: 'FIRE+', tank: 'TANK', heli: 'HELI' };
@@ -500,8 +500,8 @@ const upCost = id => Math.round(40 * Math.pow(meta[id] + 1, 1.5));
 try { best = Math.max(1, parseInt(localStorage.getItem('hh-best') || '1', 10) || 1); } catch (e) {}
 
 // difficulty climbs steeply to level 5, then levels off; rewards (gates, tank, starting squad) keep scaling with level
-const D = () => level <= 5 ? level : 5 + (level - 5) * 0.45;
-const lvlHp = () => 1 + 0.4 * (D() - 1);
+const D = () => level <= 5 ? level : 5 + (level - 5) * 0.4;
+const lvlHp = () => 1 + 0.5 * (D() - 1);
 
 function makeZombie(type, x, zAbs) {
   const d = ZT[type], hp = d.hp * lvlHp();
@@ -510,7 +510,7 @@ function makeZombie(type, x, zAbs) {
 }
 function makeWave(pos, big) {
   const frac = pos / L;
-  let n = Math.round((17 + D() * 6) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
+  let n = Math.round((18 + D() * 7) * (0.5 + frac * 1.3) * (big ? 2.2 : 1));
   n = Math.min(pos < 70 ? 6 + D() : 200, n);
   const depth = 3 + n * 0.05;
   const pBrute = pos < 70 ? 0 : Math.min(0.16, 0.03 * D()), pRunner = Math.min(0.3, 0.1 + 0.03 * D());
@@ -742,8 +742,8 @@ function bounce(b, from) {
 function shoot(x, y, z, w, dmg, vx, vy) {
   bullets.push({ x, y, z, vx, vy: vy || 0, dmg, w, z0: z, pierce: w.pierce, last: null, gate: null, dead: false });
 }
-const SHELL = { name: 'SHELL', speed: 36, range: 60, pierce: 0, splash: 2, col: '#ffcc66', len: 0.6, big: true };
-const HROCKET = { name: 'ROCKET', speed: 34, range: 62, pierce: 0, splash: 1.4, col: '#ff8a3a', len: 0.6, big: true };
+const SHELL = { name: 'SHELL', speed: 36, range: 100, pierce: 0, splash: 2, col: '#ffcc66', len: 0.6, big: true };
+const HROCKET = { name: 'ROCKET', speed: 34, range: 100, pierce: 0, splash: 1.4, col: '#ff8a3a', len: 0.6, big: true };
 
 /* ---------- update ---------- */
 function update(dt) {
@@ -798,7 +798,13 @@ function update(dt) {
       fireAcc -= 1;
       const s = form[ri(0, nVis - 1)];
       const bx = px + s.x + rnd(-0.04, 0.04), bz = s.z + 0.35;
-      const tgt = pickTarget(1, w.range - 4, 6);
+      // a crate roughly in the squad's lane draws a share of the fire
+      let tgt = null;
+      if (Math.random() < 0.35) for (const c of crates) {
+        const cz = c.zAbs - dist;
+        if (!c.dead && c.kind !== 'barrel' && cz > 3 && cz < 90 && Math.abs(c.x - px) < 1.8 && (!tgt || cz < tgt.z)) tgt = { x: c.x, z: cz };
+      }
+      if (!tgt) tgt = pickTarget(1, Math.min(w.range - 4, 60), 6);
       const aimVx = tgt ? clamp((tgt.x - bx) / Math.max(1, (tgt.z - bz) / w.speed), -4, 4) * w.aim : 0;
       for (let c = 0; c < copies; c++) {
         const off = c === 0 ? 0 : (c % 2 ? 0.22 : -0.22), cd = c === 0 ? dmg : dmg * 0.7;
@@ -848,7 +854,7 @@ function update(dt) {
   for (const z of zombies) {
     if (z.dead) continue;
     if (z.slow > 0) z.slow -= dt;
-    if (z.zAbs - dist < FAR + 4) { const sp = z.spd * (z.slow > 0 ? 0.5 : 1); z.zAbs -= sp * dt; z.ph += dt * sp * 4.2; }
+    if (z.zAbs - dist < 88) { const sp = z.spd * (z.slow > 0 ? 0.5 : 1); z.zAbs -= sp * dt; z.ph += dt * sp * 4.2; }
     z.z = z.zAbs - dist;
     if (z.z < 24) {
       const tx = px + z.off * R * 0.9;
@@ -899,7 +905,7 @@ function update(dt) {
   }
 
   // bullets (only zombies within range can be hit)
-  const near = zombies.filter(z => !z.dead && z.z > -1 && z.z < 64);
+  const near = zombies.filter(z => !z.dead && z.z > -1 && z.z < FAR);
   for (const b of bullets) {
     const w = b.w;
     const z0 = b.z; b.z += w.speed * dt; b.x += b.vx * dt; b.y = Math.max(0.5, b.y + b.vy * dt); const z1 = b.z;
@@ -922,7 +928,7 @@ function update(dt) {
     for (const c of crates) {
       if (c.dead) continue;
       const cz = c.zAbs - dist;
-      if (cz >= z0 - 0.7 && cz <= z1 + 0.7 && Math.abs(b.x - c.x) < 0.75 && cz < hz) { hit = c; hz = cz; kind = 'crate'; }
+      if (cz >= z0 - 0.7 && cz <= z1 + 0.7 && Math.abs(b.x - c.x) < 0.9 && cz < hz) { hit = c; hz = cz; kind = 'crate'; }
     }
     for (const z of near) {
       if (z.dead || z === b.last) continue;
@@ -1277,9 +1283,9 @@ function draw() {
   if (heli) drawHeli();
 
   // far haze hides spawn pop-in
-  const hz = ctx.createLinearGradient(0, 0, 0, H * 0.24);
+  const hz = ctx.createLinearGradient(0, 0, 0, H * 0.13);
   hz.addColorStop(0, 'rgba(222,190,138,1)'); hz.addColorStop(0.45, 'rgba(222,190,138,.6)'); hz.addColorStop(1, 'rgba(222,190,138,0)');
-  ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H * 0.24);
+  ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H * 0.13);
 
   // squad count badge
   {
