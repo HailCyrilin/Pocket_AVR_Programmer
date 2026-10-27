@@ -1,4 +1,9 @@
-# Horde Highway
+# Horde Arcade
+
+Two games in one page: **Horde Highway** and **Box Breaker**. Opening the page shows a
+game picker; each game has an **All games** button to go back.
+
+## Horde Highway
 
 A lane shooter in the style of the "Z Route" ads: steer a squad down a highway,
 drive through gates that multiply it, and gun down hordes of zombies and a boss.
@@ -6,6 +11,22 @@ drive through gates that multiply it, and gun down hordes of zombies and a boss.
 It is a single HTML5 canvas page with no dependencies, made for iPhone (touch
 controls, safe-area insets, home-screen mode). It also works on desktop
 (arrow keys or A/D).
+
+## Box Breaker
+
+Based on the "Top War" lane ads. You start with one soldier in front of three lanes:
+
+- **Left lane**: a long stack of blue boxes (`+1`, `+2`, ...) that break quickly, with a
+  green `×2` box now and then.
+- **Right lane**: gold boxes worth a crowd (`+20` ... `+99` and up) but much tougher, with an
+  orange `FIRE+` box every sixth.
+- **Centre lane**: a red army waits behind a barricade with a countdown. When it reaches
+  zero the army charges, followed by its chief.
+
+Drag to move; your squad shoots the lane it stands in. Each box down a lane is tougher than
+the last, so choose between quick blue boxes and big gold ones before the timer runs out,
+then hold the centre and wipe out the army and its chief. Each level brings a bigger army.
+Progress saves like Horde Highway's.
 
 ## Play on iPhone
 
