@@ -54,6 +54,12 @@ controls, safe-area insets, home-screen mode). It also works on desktop
 - **Level twists** from level 2: each level rolls one of Runner rush, Brute convoy,
   Spitter nest, Supply run (extra crates), Gate gauntlet (more gates) or Mega horde
   (fewer, bigger waves). A banner names the setting and twist when the level starts.
+- **Mission levels**: every third level (3, 6, 9, ...) replaces its twist with a mission,
+  rotating between **Defend the chopper** (a transport flies over the squad; spitters and
+  bites damage it; lose it and the mission fails), **Hold the line** (the road stops; survive
+  60 seconds of growing hordes with airdrops and reinforcements, then the boss) and
+  **Rescue survivors** (pick up at least 5 of 10 survivors before zombies reach them;
+  each adds 3 soldiers). Completing a mission pays bonus coins.
 - Each level ends with a boss that drops onto the road, calls in more zombies and
   charges the squad. Its health scales with your firepower, so it always reaches you.
 - Levels get longer, hordes bigger, zombies tougher and brutes more common.

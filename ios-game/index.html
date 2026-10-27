@@ -123,6 +123,7 @@ body{
   width:max-content;max-width:calc(100% - 32px);
 }
 .banner b{font:400 28px/1 var(--display);color:var(--ink)}
+.banner small{font-weight:500;font-size:17px;color:var(--ink)}
 .banner span{font-weight:600;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:var(--hazard)}
 .banner.show{animation:bannerIn 3.2s ease forwards}
 @keyframes bannerIn{0%{opacity:0;transform:translate(-50%,-40%)}10%,75%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(-50%,-55%)}}
@@ -135,7 +136,7 @@ body{
 }
 .buff b{font:400 12px/1 var(--display);color:var(--c);font-variant-numeric:tabular-nums}
 .buff.gun{--c:var(--hazard)}.buff.unit{--c:var(--squad)}.buff.ice{--c:#7fd0ff}
-.buff.common{--c:var(--common)}.buff.rare{--c:var(--rare)}.buff.epic{--c:var(--epic)}
+.buff.mission{--c:#ff9f43}.buff.common{--c:var(--common)}.buff.rare{--c:var(--rare)}.buff.epic{--c:var(--epic)}
 .cards{display:grid;gap:10px}
 .perk{
   display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;text-align:left;
@@ -199,7 +200,7 @@ body{
 <div id="ovWin" class="ov" hidden>
   <div class="card">
     <p class="eyebrow">Level <span id="winLvl">1</span> cleared</p>
-    <h2>Road clear</h2>
+    <h2 id="winTitle">Road clear</h2>
     <div class="stats">
       <div><b id="winKills">0</b><span>Kills</span></div>
       <div><b id="winSquad">0</b><span>Survivors</span></div>
@@ -214,8 +215,8 @@ body{
 <div id="ovLose" class="ov" hidden>
   <div class="card">
     <p class="eyebrow">Level <span id="loseLvl">1</span></p>
-    <h2>Squad overrun</h2>
-    <p>Grab more blue gates before the big hordes. Shooting a red gate long enough turns it blue.</p>
+    <h2 id="loseTitle">Squad overrun</h2>
+    <p id="loseWhy">Grab more blue gates before the big hordes. Shooting a red gate long enough turns it blue.</p>
     <div class="stats">
       <div><b id="loseKills">0</b><span>Kills</span></div>
       <div><b id="loseDist">0%</b><span>Distance</span></div>
@@ -226,7 +227,7 @@ body{
   </div>
 </div>
 
-<div id="banner" class="banner" hidden aria-live="polite"><b id="bnTheme"></b><span id="bnTwist"></span></div>
+<div id="banner" class="banner" hidden aria-live="polite"><b id="bnTheme"></b><span id="bnTwist"></span><small id="bnDesc" hidden></small></div>
 
 <div id="ovPick" class="ov" hidden>
   <div class="card">
@@ -402,6 +403,17 @@ function tankArt(g) {
   g.fillStyle = '#f2c230'; g.fillRect(18, 24, 6, 3); g.fillRect(56, 24, 6, 3);
   g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.arc(36, 36, 8, Math.PI, Math.PI * 1.8); g.fill();
 }
+function civArt(g, f) {
+  // a survivor in a hi-vis vest, waving both arms
+  const cx = 20, a = f ? -6 : 0;
+  g.fillStyle = '#34507a'; g.fillRect(cx - 7, 40, 6, 22); g.fillRect(cx + 1, 40, 6, 22);
+  g.fillStyle = '#e8762b'; rr(g, cx - 9, 20, 18, 22, 5); g.fill();
+  g.fillStyle = '#f2e04a'; g.fillRect(cx - 9, 28, 18, 3); g.fillRect(cx - 9, 35, 18, 3);
+  g.strokeStyle = '#e0b48a'; g.lineWidth = 4.5; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(cx - 8, 23); g.lineTo(cx - 15, 9 + a); g.moveTo(cx + 8, 23); g.lineTo(cx + 15, 9 - a); g.stroke();
+  g.fillStyle = '#e0b48a'; circ(g, cx, 13, 7.5);
+  g.fillStyle = '#4a3020'; g.beginPath(); g.arc(cx, 11.5, 7.8, Math.PI, Math.PI * 2); g.fill();
+}
 function heliArt(g) {
   // body seen from above and behind; rotor drawn live
   g.fillStyle = '#26467f'; g.fillRect(45, 52, 6, 40);
@@ -422,7 +434,7 @@ const ZT = {
   spitter: { hp: 2.2, spd: 1.0, r: 0.32, h: 1.80, bite: 1 },
 };
 const SPR = { walker: [], runner: [], brute: [], spitter: [] };
-let SOLDIER = [], BOSS = [], TANK = null, HELI = null;
+let SOLDIER = [], BOSS = [], TANK = null, HELI = null, CIV = [], VIPHELI = null;
 function buildSprites() {
   const looks = {
     walker: [
@@ -446,6 +458,8 @@ function buildSprites() {
     }
   }
   SOLDIER = [0, 1].map(f => mk(40, 57, g => soldierArt(g, f)));
+  CIV = [0, 1].map(f => mk(40, 64, g => civArt(g, f)));
+  VIPHELI = mk(96, 96, g => { heliArt(g); g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(242,159,67,.55)'; g.fillRect(0, 0, 96, 96); });
   TANK = mk(80, 74, tankArt);
   HELI = mk(96, 96, heliArt);
   BOSS = [0, 1].map(f => mk(120, 150, g => bossArt(g, f)));
@@ -566,9 +580,9 @@ function makeZombie(type, x, zAbs) {
   return { type, x, zAbs, z: zAbs - dist, hp, max: hp, spd: d.spd * rnd(0.85, 1.15) * (1 + 0.04 * D()), r: d.r, h: d.h, bite: d.bite,
     v: ri(0, SPR[type].length - 1), spitT: rnd(1, 3), ph: Math.random() * 6, off: rnd(-1, 1), fl: 0, dead: false };
 }
-function makeWave(pos, big) {
+function makeWave(pos, big, mul = 1) {
   const frac = pos / L;
-  let n = Math.round((18 + D() * 7) * (0.5 + frac * 1.3) * (big ? 2.2 : 1) * (tw('mega') && pos >= 70 ? 1.7 : 1));
+  let n = Math.round((18 + D() * 7) * (ms('hold') ? 1 : 0.5 + frac * 1.3) * mul * (big ? 2.2 : 1) * (tw('mega') && pos >= 70 ? 1.7 : 1));
   n = Math.min(pos < 70 ? 6 + D() : 200, n);
   const depth = 3 + n * 0.05;
   const pSpit = level >= 5 && pos >= 70 ? Math.min(0.035, 0.006 * D()) * (tw('spitters') ? 3 : 1) : 0;
@@ -594,10 +608,10 @@ function makeGates(pos) {
   if (Math.random() < 0.5) [a, b] = [b, a];
   for (const [side, g] of [[-1, a], [1, b]]) gates.push({ zAbs: pos, side, op: g.op, v: g.v, acc: 0, hitT: 0, pop: 0, done: false });
 }
-function makeCrate(zAbs) {
+function makeCrate(zAbs, force) {
   let r = Math.random() * LOOT.reduce((a, l) => a + l[1], 0), li = 0;
   while ((r -= LOOT[li][1]) > 0) li++;
-  const kind = LOOT[li][0];
+  const kind = force || LOOT[li][0];
   const tough = { tank: 1.6, heli: 1.6, nuke: 1.8, shield: 1.2, freeze: 1.2 }[kind] || 1;
   const hp = (28 + 24 * D()) * tough * (1 - 0.1 * meta.salvage);
   const gun = kind === 'weapon' ? pick(GUNS) : null;
@@ -618,24 +632,47 @@ const TWISTS = [
 let twist = null;
 const tw = id => twist && twist.id === id;
 
+// every third level is a mission with its own objective instead of a twist
+const MISSIONS = [
+  { id: 'chopper', name: 'Defend the chopper', desc: 'Keep the transport in the air' },
+  { id: 'hold',    name: 'Hold the line',      desc: 'Survive 60 seconds, then beat the boss' },
+  { id: 'rescue',  name: 'Rescue survivors',   desc: 'Pick up survivors before zombies reach them — save 5' },
+];
+const HOLD_TIME = 60, RESCUE_TOTAL = 10, RESCUE_NEED = 5;
+let mission = null, vip = null, holdT = 0, waveT = 0, airdropT = 0, reinfT = 0, survivors = [], rescued = 0, lostSurv = 0, failReason = '';
+const ms = id => mission && mission.id === id;
+// how far through the level we are, in road units (hold missions measure time instead)
+const progress = () => ms('hold') ? holdT / HOLD_TIME * L : dist;
+
 function startLevel() {
   TH = THEMES[(level - 1) % THEMES.length];
   $('nightFx').hidden = !TH.night;
-  twist = level >= 2 ? pick(TWISTS.filter(x => !x.min || level >= x.min)) : null;
+  mission = level % 3 === 0 ? MISSIONS[(level / 3 - 1) % MISSIONS.length] : null;
+  twist = !mission && level >= 2 ? pick(TWISTS.filter(x => !x.min || level >= x.min)) : null;
+  vip = null; holdT = 0; waveT = 2; airdropT = 6; reinfT = 12; survivors = []; rescued = 0; lostSurv = 0; failReason = '';
   dist = 0; speed = 0; L = 240 + 35 * Math.min(level, 8); N = 4 + level * 3 + 2 * meta.squad; px = 0; targetPx = 0; camX = 0; kills = 0;
   fireLvl = 1; weapon = 'rifle'; tanks = []; helis = []; spits = [];
   perks = {}; dropNo = 0; drops = [L * 0.34, L * 0.68]; pendingBooms = []; shieldT = 0; freezeT = 0; flashT = 0;
   zombies = []; bullets = []; gates = []; crates = []; parts = []; decals = []; texts = []; flashes = [];
   boss = null; bossPhase = false; endTimer = 0; fireAcc = 0; shake = 0; hurt = 0;
+  if (ms('chopper')) { const hp = 160 + 45 * level; vip = { x: 0, z: 1.2, hp, max: hp, fl: 0, ph: 0 }; }
+  if (ms('hold')) return;            // the road stays put; waves are spawned over time in update()
+  const wavePos = [];
   let pos = 40, i = 0;
   while (pos < L - 22) {
     if (i % (tw('gates') ? 2 : 3) === 1) makeGates(pos);
     else {
       makeWave(pos, pos > L - 60);
+      if (pos > 50) wavePos.push(pos);
       if (i > 0 && Math.random() < (tw('supply') ? 1 : 0.7)) makeCrate(pos - rnd(6, 9));
       if (i > 0 && tw('supply') && Math.random() < 0.6) makeCrate(pos - rnd(14, 18));
     }
     pos += tw('mega') ? rnd(40, 48) : rnd(26, 34); i++;
+  }
+  // survivors wait just in front of a horde: clear the road ahead of them and they can outrun it
+  if (ms('rescue')) for (let k = 0; k < RESCUE_TOTAL; k++) {
+    const wp = wavePos[Math.floor(k * wavePos.length / RESCUE_TOTAL)];
+    survivors.push({ x: rnd(-3.8, 3.8), zAbs: wp - rnd(2, 6), state: 'wait', ph: Math.random() * 6, hp: 1 });
   }
 }
 
@@ -873,12 +910,13 @@ function update(dt) {
   camX += (px * 0.3 - camX) * Math.min(1, dt * 4);
 
   // scrolling
-  if (live && !bossPhase && dist >= L) { bossPhase = true; spawnBoss(); }
-  const cruise = 5.6 + 0.3 * D();
+  if (live && !bossPhase && progress() >= L) { bossPhase = true; spawnBoss(); }
+  const cruise = ms('hold') ? 0 : 5.6 + 0.3 * D();
   speed += ((live && !bossPhase ? cruise : 0) - speed) * Math.min(1, dt * 2);
   const prevDist = dist;
   dist += speed * dt;
-  if (live && drops.length && dist >= drops[0]) { drops.shift(); openDrop(); }
+  if (live && drops.length && progress() >= drops[0]) { drops.shift(); openDrop(); }
+  if (live) updateMission(dt, R);
 
   shieldT = Math.max(0, shieldT - dt); freezeT = Math.max(0, freezeT - dt); flashT = Math.max(0, flashT - dt);
 
@@ -990,7 +1028,7 @@ function update(dt) {
     } else if (z.z < R * 0.7 + z.r && z.z > -1.5 && Math.abs(z.x - px) < R + z.r * 0.6) {
       killZombie(z, false);
       if (shieldT > 0 || Math.random() < 0.15 * pk('armor')) burst(z.x, 1, z.zAbs, 4, ['#cfe2ff', '#ffffff'], 3, 0.3, 0.08);
-      else { N -= z.bite; hurt = 0.35; shake = Math.min(1, shake + 0.35); countPop = 1; sfx.bite(); }
+      else { N -= z.bite; hurt = 0.35; shake = Math.min(1, shake + 0.35); countPop = 1; sfx.bite(); if (vip) hitVip(z.bite * 3); }
     } else if (z.z < -6) z.dead = true;
   }
 
@@ -1002,6 +1040,7 @@ function update(dt) {
     sp.dead = true;
     burst(sp.x, Math.max(0.2, sp.y), sp.zAbs, 8, ['#9bdc3a', '#c6f06a', '#5d7d2a'], 3, 0.5, 0.1);
     if (!live) continue;
+    if (sp.kind === 'vip') { if (vip && Math.abs(sp.x - vip.x) < 2.2) hitVip(sp.dmg); continue; }
     const heli = sp.heli;
     if (sp.kind === 'heli' && helis.includes(heli) && Math.abs(sp.x - heli.x) < 1.8) {
       heli.hp -= sp.dmg; heli.fl = 0.12;
@@ -1041,7 +1080,7 @@ function update(dt) {
           const tank = tanks.reduce((a, b) => Math.abs(a.x - boss.x) <= Math.abs(b.x - boss.x) ? a : b);
           tank.hp -= 6 + 3 * D(); shake = 0.6; if (tank.hp <= 0) destroyTank(tank, tankZ);
         }
-        else { N -= Math.max(Math.round(3 + D()), Math.round(N * 0.03)); hurt = 0.4; shake = 1; countPop = 1; }
+        else { N -= Math.max(Math.round(3 + D()), Math.round(N * 0.03)); hurt = 0.4; shake = 1; countPop = 1; if (vip) hitVip(8 + 3 * D()); }
         sfx.bite();
       }
     }
@@ -1128,14 +1167,83 @@ function update(dt) {
   // outcomes
   if (live) {
     if (N <= 0) { N = 0; lose(); }
+    else if (failReason) lose(failReason);
     else if (boss && boss.dead) { endTimer -= dt; if (endTimer <= 0) win(); }
   }
   if (live) updateHud();
 }
+function hitVip(dmg) {
+  if (!vip) return;
+  vip.hp -= dmg; vip.fl = 0.12;
+  if (vip.hp <= 0) {
+    burst(vip.x, 3.5, dist + vip.z, 60, ['#ffd23f', '#ff8a3a', '#f2c230', '#3a3632', '#55504a'], 8, 1.3, 0.2);
+    decals.push({ x: vip.x, zAbs: dist + vip.z, s: 1.8, rot: 0, a: 1, scorch: true });
+    vip = null; shake = 1; sfx.boom();
+    failReason = 'The chopper went down.';
+  }
+}
+function updateMission(dt, R) {
+  if (vip) {
+    vip.fl -= dt; vip.ph += dt;
+    vip.x += (clamp(px * 0.8, -4, 4) - vip.x) * Math.min(1, dt * 1.5);
+  }
+  if (ms('hold') && !bossPhase) {
+    holdT += dt;
+    if ((waveT -= dt) <= 0) {
+      waveT = 4.5;
+      makeWave(dist + rnd(84, 92), false, 0.3 + holdT / HOLD_TIME * 0.7);
+    }
+    if ((airdropT -= dt) <= 0) {
+      airdropT = rnd(8, 11);
+      makeCrate(dist + rnd(30, 50), pick(['troops', 'troops', 'tank', 'heli', 'fire', 'weapon', 'shield']));
+      floatText('AIRDROP', '#7fb2ff', 22);
+    }
+    if ((reinfT -= dt) <= 0) {
+      reinfT = 12;
+      const n = 6 + 3 * level; N += n; countPop = 1; sfx.gate(true);
+      floatText(`REINFORCEMENTS +${n}`, '#7fb2ff', 24);
+    }
+  }
+  if (ms('rescue')) {
+    for (const sv of survivors) {
+      if (sv.state !== 'wait') continue;
+      sv.ph += dt;
+      if (sv.zAbs - dist < 70) {             // they've seen you: run for the squad
+        sv.zAbs -= 2.2 * dt;
+        sv.x += clamp(px - sv.x, -1, 1) * 1.4 * dt;
+      } else sv.zAbs -= 1.0 * dt;            // until then, keep backing away from the horde
+      const z = sv.zAbs - dist;
+      if (z < R * 0.7 + 0.6 && z > -1.5 && Math.abs(sv.x - px) < R + 0.6) {
+        sv.state = 'saved'; rescued++; N += 3; countPop = 1; sfx.gate(true);
+        floatText(`SAVED ${rescued}/${RESCUE_NEED}`, '#7fffb0', 24);
+        continue;
+      }
+      if (z < -3) { sv.state = 'lost'; lostSurv++; continue; }
+      // only within reach of your guns can a survivor be caught
+      if (z < 60) for (const zb of zombies) {
+        if (!zb.dead && Math.abs(zb.zAbs - sv.zAbs) < 0.7 && Math.abs(zb.x - sv.x) < 0.55 + zb.r && (sv.hp -= dt * 1.2) <= 0) {
+          sv.state = 'lost'; lostSurv++;
+          burst(sv.x, 1, sv.zAbs, 12, ['#8e1b1b', '#b3261e', '#f29a3a'], 4, 0.7);
+          decals.push({ x: sv.x, zAbs: sv.zAbs, s: 0.6, rot: rnd(0, 3), a: 1 });
+          floatText('SURVIVOR LOST', '#ff6b5e', 20);
+          break;
+        }
+      }
+    }
+    if (RESCUE_TOTAL - lostSurv < RESCUE_NEED) failReason = 'Too many survivors were lost.';
+  }
+}
+
 const SPIT_G = 9;
 function throwSpit(z) {
   const T = clamp(z.z / 30, 0.9, 2.6);
   // lead the helicopter: aim where its weave will put it when the glob lands
+  if (vip && Math.random() < 0.6) {
+    const sy = z.h * 0.8, tzAbs = dist + speed * T + vip.z, tx = clamp(px * 0.8, -4, 4) + rnd(-0.8, 0.8);
+    spits.push({ x: z.x, y: sy, zAbs: z.zAbs, vx: (tx - z.x) / T, vz: (tzAbs - z.zAbs) / T, vy: (3.8 - sy) / T + 0.5 * SPIT_G * T,
+      t: 0, T, kind: 'vip', dmg: 5 + D() * 0.8, dead: false });
+    return;
+  }
   const heli = helis.length ? pick(helis) : null;
   const tgt = heli ? { x: heliX(heli, t + T) + rnd(-1, 1), y: 5.6, z: heli.z, kind: 'heli' } : { x: px, y: 0.8, z: 0, kind: 'squad' };
   const sy = z.h * 0.8, tzAbs = dist + speed * T + tgt.z;
@@ -1551,6 +1659,43 @@ function drawHeli(heli) {
   ctx.fillStyle = heli.hp / heli.max > 0.35 ? '#7fb2ff' : '#d2382c'; ctx.fillRect(p[0] - bw / 2, by, bw * heli.hp / heli.max, 5);
 }
 
+function drawSurvivor(sv) {
+  const z = sv.zAbs - dist;
+  const g = proj(sv.x, 0, z); if (!g) return;
+  ctx.strokeStyle = 'rgba(127,255,176,.8)'; ctx.lineWidth = Math.max(1.5, 0.06 * g[2]);
+  ctx.beginPath(); ctx.ellipse(g[0], g[1], 0.6 * g[2], 0.25 * g[2], 0, 0, Math.PI * 2); ctx.stroke();
+  const img = CIV[Math.sin(sv.ph * 6) > 0 ? 0 : 1];
+  const h = 1.6 * g[2], w = h * img.width / img.height;
+  ctx.drawImage(img, g[0] - w / 2, g[1] - h, w, h);
+  const la = labelAlpha(z, 70);
+  if (la > 0) {
+    ctx.globalAlpha = la; ctx.font = `${Math.max(9, 0.4 * g[2])}px Bungee, Impact, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.fillStyle = '#7fffb0';
+    ctx.strokeText('HELP', g[0], g[1] - h - 0.3 * g[2]); ctx.fillText('HELP', g[0], g[1] - h - 0.3 * g[2]);
+    ctx.globalAlpha = 1;
+  }
+}
+function drawVip() {
+  const y = 3.8 + Math.sin(vip.ph * 2) * 0.12;
+  const sh = proj(vip.x, 0, vip.z);
+  if (sh) { ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(sh[0], sh[1], 1.8 * sh[2], 0.6 * sh[2], 0, 0, Math.PI * 2); ctx.fill(); }
+  const p = proj(vip.x, y, vip.z); if (!p) return;
+  const w = 3.6 * p[2], h = w * VIPHELI.height / VIPHELI.width;
+  ctx.drawImage(VIPHELI, p[0] - w / 2, p[1] - h / 2, w, h);
+  if (vip.fl > 0) { ctx.globalAlpha = 0.5; ctx.fillStyle = '#9bdc3a'; ctx.beginPath(); ctx.ellipse(p[0], p[1], w * 0.3, h * 0.4, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  const r = 2.6 * p[2], a = vip.ph * 22;
+  ctx.fillStyle = 'rgba(30,32,38,.16)'; ctx.beginPath(); ctx.ellipse(p[0], p[1] - h * 0.06, r, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(25,27,32,.8)'; ctx.lineWidth = Math.max(2, 0.12 * p[2]); ctx.beginPath();
+  for (const off of [0, Math.PI / 2]) {
+    const c = Math.cos(a + off), s2 = Math.sin(a + off);
+    ctx.moveTo(p[0] - c * r, p[1] - h * 0.06 - s2 * r * 0.5); ctx.lineTo(p[0] + c * r, p[1] - h * 0.06 + s2 * r * 0.5);
+  }
+  ctx.stroke();
+  const bw = 2.4 * p[2], by = p[1] + h * 0.55;
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(p[0] - bw / 2, by, bw, 6);
+  ctx.fillStyle = vip.hp / vip.max > 0.35 ? '#ff9f43' : '#d2382c'; ctx.fillRect(p[0] - bw / 2, by, bw * vip.hp / vip.max, 6);
+}
+
 function drawSoldier(i, nVis) {
   const s = form[i];
   const x = px + s.x, z = s.z;
@@ -1573,6 +1718,7 @@ function draw() {
   if (boss && !boss.dead) list.push([boss.zAbs - dist, 3, boss]);
   for (let i = 0; i < nVis; i++) list.push([form[i].z, 4, i]);
   for (const tk of tanks) list.push([squadR(Math.max(1, nVis)) + 1.4, 5, tk]);
+  for (const sv of survivors) { const z = sv.zAbs - dist; if (sv.state === 'wait' && z < FAR && z > NEAR) list.push([z, 6, sv]); }
   for (const heli of helis) { const sp = proj(heli.x, 0, heli.z); if (sp) { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(sp[0], sp[1], 1.3 * sp[2], 0.5 * sp[2], 0, 0, Math.PI * 2); ctx.fill(); } }
   list.sort((a, b) => b[0] - a[0]);
   for (const [, k, o] of list) {
@@ -1581,7 +1727,8 @@ function draw() {
     else if (k === 2) drawGate(o);
     else if (k === 3) drawBoss(o);
     else if (k === 4) drawSoldier(o, nVis);
-    else drawTank(o);
+    else if (k === 5) drawTank(o);
+    else drawSurvivor(o);
   }
 
   // tracers
@@ -1645,6 +1792,7 @@ function draw() {
     }
   }
   for (const heli of [...helis].sort((a, b) => b.z - a.z)) drawHeli(heli);
+  if (vip) drawVip();
   drawWeather();
 
   // far haze hides spawn pop-in
@@ -1697,7 +1845,7 @@ function draw() {
 /* ---------- HUD & flow ---------- */
 let hudK = -1;
 function updateHud() {
-  $('progFill').style.width = `${Math.min(100, dist / L * 100)}%`;
+  $('progFill').style.width = `${Math.min(100, progress() / L * 100)}%`;
   updateBuffs();
   if (kills !== hudK) { hudK = kills; $('hudKills').textContent = kills; }
   if (boss) {
@@ -1708,7 +1856,11 @@ function updateHud() {
 // side panel: what is currently boosting the squad; only touches the DOM when the list changes
 let buffKey = '';
 function updateBuffs() {
-  const list = [['gun', WEAPONS[weapon].name, '']];
+  const list = [];
+  if (ms('chopper') && vip) list.push(['mission', 'Chopper', `${Math.max(0, Math.round(vip.hp / vip.max * 100))}%`]);
+  if (ms('hold')) list.push(['mission', 'Hold', bossPhase ? 'Boss!' : `${Math.ceil(HOLD_TIME - holdT)}s`]);
+  if (ms('rescue')) list.push(['mission', 'Saved', `${rescued}/${RESCUE_NEED}`]);
+  list.push(['gun', WEAPONS[weapon].name, '']);
   if (fireLvl > 1) list.push(['gun', 'Fire rate', `+${(fireLvl - 1) * 30}%`]);
   for (const p of PERKS) {
     const n = pk(p.id);
@@ -1740,7 +1892,8 @@ function play() {
   $('hud').hidden = false; $('bossBar').hidden = true;
   $('hudLevel').textContent = level;
   $('bnTheme').textContent = TH.name;
-  $('bnTwist').textContent = twist ? `${twist.name} · ${twist.desc}` : 'Clear the road';
+  $('bnTwist').textContent = mission ? `Mission · ${mission.name}` : twist ? `${twist.name} · ${twist.desc}` : 'Clear the road';
+  $('bnDesc').textContent = mission ? mission.desc : ''; $('bnDesc').hidden = !mission;
   const bn = $('banner'); bn.hidden = false; bn.classList.remove('show'); void bn.offsetWidth; bn.classList.add('show');
   clearTimeout(bn._t); bn._t = setTimeout(() => { bn.hidden = true; }, 3200);
   hudK = -1; updateHud();
@@ -1837,17 +1990,20 @@ function earn(n) { meta.coins += n; saveMeta(); renderShop(); return n; }
 function win() {
   state = 'won';
   $('winLvl').textContent = level; $('winKills').textContent = kills; $('winSquad').textContent = Math.floor(N);
-  $('winCoins').textContent = '+' + earn(Math.round(kills / 4) + 20 * level + Math.floor(N / 10));
+  $('winCoins').textContent = '+' + earn(Math.round(kills / 4) + 20 * level + Math.floor(N / 10) + (mission ? 60 + 15 * level : 0));
+  $('winTitle').textContent = mission ? 'Mission complete' : 'Road clear';
   level++;
   if (level > best) { best = level; try { localStorage.setItem('hh-best', String(best)); } catch (e) {} }
   saveGame();
   setTimeout(() => { if (state === 'won') showOnly('ovWin'); }, 300);
 }
-function lose() {
+function lose(reason) {
   state = 'lost';
+  $('loseTitle').textContent = reason ? 'Mission failed' : 'Squad overrun';
+  $('loseWhy').textContent = reason || 'Grab more blue gates before the big hordes. Shooting a red gate long enough turns it blue.';
   $('loseLvl').textContent = level; $('loseKills').textContent = kills;
   $('loseCoins').textContent = '+' + earn(Math.round(kills / 4));
-  $('loseDist').textContent = `${Math.min(100, Math.round(dist / L * 100))}%`;
+  $('loseDist').textContent = `${Math.min(100, Math.round(progress() / L * 100))}%`;
   setTimeout(() => { if (state === 'lost') showOnly('ovLose'); }, 900);
 }
 
@@ -1918,7 +2074,7 @@ function boot(data) {
   requestAnimationFrame(ts => { lastTs = ts; requestAnimationFrame(frame); });
 }
 
-window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => choosePerk(i), perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), theme: () => TH.name + (twist ? ' / ' + twist.id : ''), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: helis.length && helis.map(h => Math.round(h.hp)).join('/'), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
+window.__hh = { update: dt => update(dt), get: () => ({ state, level, N, dist, L, kills, zombies: zombies.length, boss: boss && boss.hp }), steer: x => { targetPx = x; }, setLevel: n => { level = n; }, gates: () => gates.filter(g => !g.done).map(g => ({ z: g.zAbs - dist, side: g.side, op: g.op, v: g.v })), crates: () => crates.map(c => ({ z: c.zAbs - dist, x: c.x, kind: c.kind })), pick: i => choosePerk(i), perks: () => ({ ...perks }), meta: () => ({ ...meta }), zlist: () => zombies.map(z => ({ type: z.type, z: z.z })), give: (kind, gun) => openCrate({ kind, gun, x: px, zAbs: dist + 4 }), mission: () => ({ surv: survivors.filter(s => s.state === 'wait').map(s => ({ x: s.x, z: s.zAbs - dist })), id: mission && mission.id, vip: vip && Math.round(vip.hp), holdT: Math.round(holdT), rescued, lostSurv, fail: failReason }), theme: () => TH.name + (twist ? ' / ' + twist.id : ''), extra: () => ({ weapon, fireLvl, tank: tanks.length && tanks.map(tk => Math.round(tk.hp)).join('/'), heli: helis.length && helis.map(h => Math.round(h.hp)).join('/'), spits: spits.length, bossMax: boss && boss.max, bossZ: boss && boss.zAbs - dist }) };
 window.claude?.hot?.snapshot?.(() => ({ level }));
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 })();
