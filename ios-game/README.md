@@ -19,8 +19,17 @@ controls, safe-area insets, home-screen mode). It also works on desktop
 - **Drag** anywhere to steer. The squad fires on its own and aims at the closest zombies.
 - **Blue gates** (`+N`, `×2`) grow the squad; **red gates** (`−N`, `÷2`) shrink it.
   Shooting a `+` gate raises it; shooting a `−` gate lowers it until it flips to `+`.
-- **Crates** marked FIRE raise the fire rate when destroyed.
-- Each level ends with a boss. Levels get longer, hordes get bigger and tougher.
+  Most pairs have a bad side, and some have two.
+- **Crates** open when shot. Each one is labelled with what it gives:
+  - Weapons: **SMG** (fast, sprays), **SHOTGUN** (6-pellet blast, short range),
+    **LASER** (pierces through a line of zombies), **ROCKETS** (slow, splash damage).
+  - **FIRE+**: faster fire for the whole squad (up to 4 times).
+  - **TANK**: a tank drives in front of the squad, shells the horde and takes the bites
+    until its armour runs out. A second tank crate repairs and upgrades it.
+  - **HELI**: a helicopter flies cover for 18 seconds, firing rockets.
+- Each level ends with a boss that drops onto the road, calls in more zombies and
+  charges the squad. Its health scales with your firepower, so it always reaches you.
+- Levels get longer, hordes bigger, zombies tougher and brutes more common.
 
 ## Files
 
